@@ -1,15 +1,15 @@
 /* ==========================================================
-   Rojgar AREA — Frontend
+   Rojgar AREA — Frontend (Enhanced)
    Plain React 18 + Babel-standalone (no build step).
    Backend: Google Apps Script Web App (Code.gs)
    Images:  Cloudinary unsigned upload
    Map:     Leaflet + OpenStreetMap tiles (no API key needed)
    ========================================================== */
-   import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo } from 'react';
-   import './App.css'; // for the styles
+   import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo,} from 'react';
+   import './App.css';
    import L from 'leaflet';
    import 'leaflet/dist/leaflet.css';
-
+   
    // Leaflet's default marker icon fix
    delete L.Icon.Default.prototype._getIconUrl;
    L.Icon.Default.mergeOptions({
@@ -17,7 +17,7 @@
      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
    });
-
+   
    // ------------------------------------------------------------
    // CONFIG
    // ------------------------------------------------------------
@@ -28,7 +28,7 @@
        uploadPreset: 'pgrental'
      }
    };
-
+   
    const WORKER_CATEGORIES = [
      'Skilled Labour', 'Unskilled Labour', 'Driver', 'Electrician', 'Plumber',
      'Mason', 'Welder', 'Machine Operator', 'Helper', 'Security Guard',
@@ -51,7 +51,27 @@
    const HOME_DEFAULT_RADIUS = 10;
    const HOME_MAX_RESULTS = 12;
    const DEFAULT_CENTER = { lat: 30.9010, lng: 75.8573 };
-
+   
+   // Icons for worker categories
+   const CATEGORY_ICONS = {
+     'Skilled Labour': '🔧', 'Unskilled Labour': '💪', 'Driver': '🚗', 'Electrician': '⚡',
+     'Plumber': '🔧', 'Mason': '🏗️', 'Welder': '🔥', 'Machine Operator': '🔩',
+     'Helper': '🤝', 'Security Guard': '🛡️', 'Tailor / Stitching': '🧵', 'Packing Staff': '📦',
+     'Delivery Staff': '🛵', 'Housekeeping': '🧹', 'Cook / Kitchen Staff': '👨‍🍳', 'Other': '📋'
+   };
+   
+   // Enhanced category images for hero section
+   const CATEGORY_IMAGES = {
+     'Skilled Labour': 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=400&h=300&fit=crop',
+     'Driver': 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=300&fit=crop',
+     'Electrician': 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop',
+     'Plumber': 'https://images.unsplash.com/photo-1607472586893-edb57bcf0e39?w=400&h=300&fit=crop',
+     'Mason': 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=400&h=300&fit=crop',
+     'Welder': 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=300&fit=crop',
+     'Security Guard': 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=400&h=300&fit=crop',
+     'Cook / Kitchen Staff': 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&h=300&fit=crop'
+   };
+   
    // ------------------------------------------------------------
    // API
    // ------------------------------------------------------------
@@ -69,7 +89,7 @@
      if (!data.success) throw new Error(data.message || 'Request failed');
      return data;
    }
-
+   
    async function uploadToCloudinary(file) {
      const url = `https://api.cloudinary.com/v1_1/${CONFIG.CLOUDINARY.cloudName}/image/upload`;
      const formData = new FormData();
@@ -80,7 +100,7 @@
      if (!res.ok) throw new Error((data.error && data.error.message) || 'Image upload failed');
      return data.secure_url;
    }
-
+   
    // ------------------------------------------------------------
    // UTILITIES
    // ------------------------------------------------------------
@@ -92,30 +112,30 @@
        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
    }
-
+   
    function formatDistance(km) {
      if (km == null) return null;
      if (km < 1) return `${Math.round(km * 1000)} m away`;
      return `${km.toFixed(1)} km away`;
    }
-
+   
    function parseSalaryNumber(s) {
      if (!s) return 0;
      const nums = String(s).match(/\d+/g);
      if (!nums) return 0;
      return Math.max(...nums.map(Number));
    }
-
+   
    function categoryOf(ad) {
      return (ad.workerCategory === 'Other' && ad.customCategory) ? ad.customCategory : (ad.displayCategory || ad.workerCategory);
    }
-
+   
    function buildCategoryOptions(ads) {
      const set = new Set(WORKER_CATEGORIES.filter((c) => c !== 'Other'));
      (ads || []).forEach((a) => { if (categoryOf(a)) set.add(categoryOf(a)); });
      return Array.from(set).sort();
    }
-
+   
    function withDistances(ads, userCoords) {
      return ads.map((a) => {
        let distanceKm = null;
@@ -125,15 +145,15 @@
        return { ...a, distanceKm };
      });
    }
-
+   
    const EMPTY_FILTERS = {
      search: '', category: '', businessType: '', radius: 'all',
      minSalary: '', experience: '', education: '', skills: '', sortBy: ''
    };
-
+   
    function filterAndSortAds(ads, filters, userCoords) {
      let list = withDistances(ads, userCoords);
-
+   
      if (filters.radius && filters.radius !== 'all' && userCoords) {
        list = list.filter((a) => a.distanceKm == null || a.distanceKm <= Number(filters.radius));
      }
@@ -148,7 +168,7 @@
      if (filters.experience) list = list.filter((a) => (a.experience || '').toLowerCase().includes(filters.experience.toLowerCase()));
      if (filters.education) list = list.filter((a) => (a.education || '').toLowerCase().includes(filters.education.toLowerCase()));
      if (filters.skills) list = list.filter((a) => (a.skills || '').toLowerCase().includes(filters.skills.toLowerCase()));
-
+   
      const sortBy = filters.sortBy || (userCoords ? 'distance' : 'newest');
      list.sort((a, b) => {
        if (sortBy === 'distance') {
@@ -162,7 +182,7 @@
      });
      return list;
    }
-
+   
    // ------------------------------------------------------------
    // CONTEXTS
    // ------------------------------------------------------------
@@ -172,7 +192,7 @@
    const useAuth = () => useContext(AuthContext);
    const useToast = () => useContext(ToastContext);
    const useGeo = () => useContext(GeoContext);
-
+   
    function useGeolocation() {
      const [state, setState] = useState({ status: 'idle', coords: null, error: null });
      const request = useCallback(() => {
@@ -186,7 +206,61 @@
      }, []);
      return { ...state, request };
    }
-
+   
+   // ------------------------------------------------------------
+   // ANIMATION HELPERS
+   // ------------------------------------------------------------
+   function useIntersectionObserver(ref, options = { threshold: 0.1 }) {
+     const [isVisible, setIsVisible] = useState(false);
+   
+     useEffect(() => {
+       const observer = new IntersectionObserver(([entry]) => {
+         if (entry.isIntersecting) {
+           setIsVisible(true);
+           observer.disconnect();
+         }
+       }, options);
+   
+       if (ref.current) {
+         observer.observe(ref.current);
+       }
+   
+       return () => observer.disconnect();
+     }, [ref, options]);
+   
+     return isVisible;
+   }
+   
+   function AnimatedSection({ children, className = '', delay = 0 }) {
+     const ref = useRef(null);
+     const isVisible = useIntersectionObserver(ref);
+   
+     return (
+       <div
+         ref={ref}
+         className={`animated-section ${isVisible ? 'visible' : ''} ${className}`}
+         style={{ transitionDelay: `${delay}ms` }}
+       >
+         {children}
+       </div>
+     );
+   }
+   
+   function AnimatedCard({ children, className = '', delay = 0 }) {
+     const ref = useRef(null);
+     const isVisible = useIntersectionObserver(ref);
+   
+     return (
+       <div
+         ref={ref}
+         className={`animated-card ${isVisible ? 'visible' : ''} ${className}`}
+         style={{ transitionDelay: `${delay}ms` }}
+       >
+         {children}
+       </div>
+     );
+   }
+   
    // ------------------------------------------------------------
    // SMALL UI PRIMITIVES
    // ------------------------------------------------------------
@@ -198,7 +272,7 @@
        </div>
      );
    }
-
+   
    function ErrorState({ message, onRetry }) {
      return (
        <div className="state-box">
@@ -207,7 +281,7 @@
        </div>
      );
    }
-
+   
    function EmptyState({ title, message, icon }) {
      return (
        <div className="state-box">
@@ -217,7 +291,7 @@
        </div>
      );
    }
-
+   
    function StatusBadge({ status }) {
      const labels = {
        active: 'Active', inactive: 'Paused', taken_down: 'Taken Down', pending: 'Pending',
@@ -225,18 +299,18 @@
      };
      return <span className={`badge badge-${status}`}>{labels[status] || status}</span>;
    }
-
+   
    function Toast({ toast }) {
      if (!toast) return null;
      return <div className={`toast ${toast.type}`}>{toast.message}</div>;
    }
-
+   
    function DistanceChip({ km }) {
      const label = formatDistance(km);
      if (!label) return null;
      return <span className="distance-chip">📍 {label}</span>;
    }
-
+   
    function LocationBanner({ compact }) {
      const geo = useGeo();
      if (geo.status === 'granted') return null;
@@ -254,7 +328,7 @@
        </div>
      );
    }
-
+   
    function RadiusSelect({ value, onChange, disabled }) {
      return (
        <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
@@ -263,7 +337,7 @@
        </select>
      );
    }
-
+   
    // ------------------------------------------------------------
    // MAP VIEW
    // ------------------------------------------------------------
@@ -273,8 +347,8 @@
      const markerRef = useRef(null);
      const onPickRef = useRef(onPick);
      useEffect(() => { onPickRef.current = onPick; }, [onPick]);
-
-     const placeMarker = (map, la, ln) => {
+   
+     const placeMarker = useCallback((map, la, ln) => {
        if (markerRef.current) {
          markerRef.current.setLatLng([la, ln]);
        } else {
@@ -286,13 +360,13 @@
            });
          }
        }
-     };
-
+     }, [markerDraggable]);
+   
      useEffect(() => {
        if (!containerRef.current || mapRef.current) return;
        const startLat = lat != null ? lat : DEFAULT_CENTER.lat;
        const startLng = lng != null ? lng : DEFAULT_CENTER.lng;
-
+   
        const map = L.map(containerRef.current, {
          zoomControl: interactive,
          dragging: interactive,
@@ -301,23 +375,23 @@
          touchZoom: interactive,
          tap: interactive,
        }).setView([startLat, startLng], zoom);
-
+   
        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
          attribution: '&copy; OpenStreetMap contributors',
          maxZoom: 19,
        }).addTo(map);
-
+   
        if (lat != null && lng != null) placeMarker(map, lat, lng);
-
+   
        if (interactive) {
          map.on('click', (e) => {
            placeMarker(map, e.latlng.lat, e.latlng.lng);
            onPickRef.current && onPickRef.current(e.latlng.lat, e.latlng.lng);
          });
        }
-
+   
        mapRef.current = map;
-
+   
        const invalidate = () => { if (mapRef.current) mapRef.current.invalidateSize(); };
        const timers = [80, 250, 600].map((ms) => setTimeout(invalidate, ms));
        let resizeObserver;
@@ -326,7 +400,7 @@
          resizeObserver.observe(containerRef.current);
        }
        window.addEventListener('resize', invalidate);
-
+   
        return () => {
          timers.forEach(clearTimeout);
          window.removeEventListener('resize', invalidate);
@@ -339,19 +413,18 @@
          markerRef.current = null;
        };
        // eslint-disable-next-line react-hooks/exhaustive-deps
-     }, []);
-
+     }, [interactive, placeMarker, zoom]);
+   
      useEffect(() => {
        if (!mapRef.current || lat == null || lng == null) return;
        mapRef.current.setView([lat, lng], Math.max(mapRef.current.getZoom(), zoom));
        placeMarker(mapRef.current, lat, lng);
        setTimeout(() => mapRef.current && mapRef.current.invalidateSize(), 60);
-       // eslint-disable-next-line react-hooks/exhaustive-deps
-     }, [lat, lng]);
-
+     }, [lat, lng, placeMarker, zoom]);
+   
      return <div ref={containerRef} className="leaflet-map" style={height ? { height } : undefined}></div>;
    }
-
+   
    // ------------------------------------------------------------
    // LIGHTBOX
    // ------------------------------------------------------------
@@ -365,7 +438,7 @@
        window.addEventListener('keydown', onKey);
        return () => window.removeEventListener('keydown', onKey);
      }, [onClose, onNav]);
-
+   
      if (index == null) return null;
      return (
        <div className="lightbox-overlay" onClick={onClose}>
@@ -381,7 +454,7 @@
        </div>
      );
    }
-
+   
    // ==============================================================
    // APP ROOT
    // ==============================================================
@@ -392,19 +465,19 @@
      const [route, setRoute] = useState({ page: 'home', params: {} });
      const [toast, setToast] = useState(null);
      const geo = useGeolocation();
-
+   
      useEffect(() => { geo.request(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
+   
      const navigate = (page, params = {}) => {
        setRoute({ page, params });
        window.scrollTo(0, 0);
      };
-
+   
      const showToast = useCallback((message, type = 'success') => {
        setToast({ message, type });
        setTimeout(() => setToast(null), 3200);
      }, []);
-
+   
      const login = (u) => {
        setUser(u);
        localStorage.setItem('kb_user', JSON.stringify(u));
@@ -414,9 +487,9 @@
        localStorage.removeItem('kb_user');
        navigate('home');
      };
-
+   
      const authValue = { user, login, logout };
-
+   
      return (
        <AuthContext.Provider value={authValue}>
          <GeoContext.Provider value={geo}>
@@ -432,7 +505,7 @@
        </AuthContext.Provider>
      );
    }
-
+   
    function MainRouter({ route, navigate }) {
      const { user } = useAuth();
      switch (route.page) {
@@ -448,20 +521,19 @@
        default: return <HomePage navigate={navigate} />;
      }
    }
-
+   
    function Footer({ navigate }) {
      const handleNav = (path, params) => (e) => {
        e.preventDefault();
        navigate(path, params || {});
      };
-
+   
      return (
        <div className="footer">
          <div className="container">
            <div className="footer-grid">
              <div className="footer-col">
-               <h4>Rojgar AREA
-               </h4>
+               <h4>Rojgar AREA</h4>
                <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
              </div>
              <div className="footer-col">
@@ -492,25 +564,35 @@
        </div>
      );
    }
-
+   
    // ==============================================================
    // NAVBAR
    // ==============================================================
    function Navbar({ route, navigate }) {
      const { user, logout } = useAuth();
      const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-     // NEW IMAGE URL FOR BRAND MARK
-     const brandImageUrl = 'https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png';
-
+     const [scrolled, setScrolled] = useState(false);
+   
+     useEffect(() => {
+       const handleScroll = () => {
+         setScrolled(window.scrollY > 20);
+       };
+       window.addEventListener('scroll', handleScroll);
+       return () => window.removeEventListener('scroll', handleScroll);
+     }, []);
+   
      return (
-       <div className="navbar">
+       <div className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
          <div className="container navbar-inner">
-           <div className="brand" onClick={() => { navigate('home'); setMobileMenuOpen(false); }}>
-             {/* Replaced text 'R_A_' with image */}
-             <img src={brandImageUrl} alt="Rojgar AREA logo" className="brand-mark-img" />
-             <div className="brand-text">Rojgar<span>AREA</span></div>
-           </div>
+         <div className="brand" onClick={() => { navigate('home'); setMobileMenuOpen(false); }}>
+  <img 
+    src="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png" 
+    alt="Rojgar AREA Logo" 
+    className="brand-logo"
+    style={{ height: '40px', width: 'auto' }}
+  />
+  <div className="brand-text">Rojgar<span>AREA</span></div>
+</div>
            <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
              {mobileMenuOpen ? '✕' : '☰'}
            </button>
@@ -538,9 +620,9 @@
        </div>
      );
    }
-
+   
    // ==============================================================
-   // HOME PAGE
+   // HOME PAGE — Enhanced with animations and images
    // ==============================================================
    function HomePage({ navigate }) {
      const geo = useGeo();
@@ -548,18 +630,18 @@
      const [error, setError] = useState(null);
      const [search, setSearch] = useState('');
      const [locationSearch, setLocationSearch] = useState('');
-
+   
      const load = useCallback(() => {
        setAllAds(null); setError(null);
        apiCall('getAds', {}).then((data) => setAllAds(data.ads)).catch((err) => setError(err.message));
      }, []);
      useEffect(() => { load(); }, [load]);
-
+   
      const runSearch = (e) => {
        e.preventDefault();
        navigate('browse', { filters: { ...EMPTY_FILTERS, search } });
      };
-
+   
      const runNearbySearch = () => {
        if (geo.status === 'granted') {
          navigate('browse', { filters: { ...EMPTY_FILTERS, radius: HOME_DEFAULT_RADIUS } });
@@ -568,7 +650,7 @@
          navigate('browse', { filters: { ...EMPTY_FILTERS } });
        }
      };
-
+   
      const nearby = useMemo(() => {
        if (!allAds) return null;
        const filters = geo.status === 'granted'
@@ -576,16 +658,74 @@
          : EMPTY_FILTERS;
        return filterAndSortAds(allAds, filters, geo.coords).slice(0, HOME_MAX_RESULTS);
      }, [allAds, geo.status, geo.coords]);
-
+   
+     const activeCount = useMemo(
+       () => (allAds || []).filter((a) => a.status === 'active').length,
+       [allAds]
+     );
+   
+     const jobCategories = useMemo(() => {
+       const counts = {};
+       (allAds || []).forEach((ad) => {
+         if (ad.status !== 'active') return;
+         const cat = categoryOf(ad);
+         if (!cat) return;
+         counts[cat] = (counts[cat] || 0) + 1;
+       });
+       return Object.entries(counts)
+         .sort((a, b) => b[1] - a[1])
+         .slice(0, 8)
+         .map(([name, count]) => ({ 
+           icon: CATEGORY_ICONS[name] || '📋', 
+           name, 
+           count,
+           image: CATEGORY_IMAGES[name] || null
+         }));
+     }, [allAds]);
+   
+     const steps = [
+       { number: '01', title: 'Search Jobs', description: 'Find thousands of worker requirements from local businesses near you.', icon: '🔍' },
+       { number: '02', title: 'Apply Instantly', description: 'Apply to jobs with one click and get contacted by employers.', icon: '📝' },
+       { number: '03', title: 'Get Hired', description: 'Connect directly with businesses and start working.', icon: '🎉' },
+     ];
+   
+     // Hero images for the background slideshow
+     const heroImages = [
+       'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=1200&h=600&fit=crop',
+       'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=600&fit=crop',
+       'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=1200&h=600&fit=crop',
+     ];
+   
+     const [heroImageIndex, setHeroImageIndex] = useState(0);
+   
+     useEffect(() => {
+      const interval = setInterval(() => {
+        setHeroImageIndex((prev) => (prev + 1) % heroImages.length);
+      }, 6000);
+      return () => clearInterval(interval);
+    }, [heroImages.length]);
+   
      return (
        <div>
+         {/* HERO SECTION with slideshow */}
          <div className="hero">
+           <div className="hero-slideshow">
+             {heroImages.map((img, i) => (
+               <div 
+                 key={i} 
+                 className={`hero-slide ${i === heroImageIndex ? 'active' : ''}`}
+                 style={{ backgroundImage: `url(${img})` }}
+               />
+             ))}
+             <div className="hero-overlay"></div>
+           </div>
+           <div className="hero-particles"></div>
            <div className="container">
-             <div className="hero-badge">🇮🇳 India's Local Job Platform</div>
-             <h1>Find <em>jobs near you</em> — posted directly by local businesses</h1>
-             <p>Discover thousands of worker requirements from factories, shops, restaurants, and workshops in your area. No middlemen, direct connection.</p>
+             <div className="hero-badge animate-float">🇮🇳 India's Local Job Platform</div>
+             <h1 className="animate-slide-up">Find <em>jobs near you</em> — posted directly by local businesses</h1>
+             <p className="animate-slide-up-delay">Discover worker requirements from factories, shops, restaurants, and workshops in your area. No middlemen, direct connection.</p>
              
-             <form className="hero-search" onSubmit={runSearch}>
+             <form className="hero-search animate-slide-up-delay-2" onSubmit={runSearch}>
                <div className="hero-search-group">
                  <div className="hero-search-field">
                    <span className="hero-search-icon">🔍</span>
@@ -608,25 +748,125 @@
                  <button type="submit" className="btn btn-primary btn-lg">Search Jobs</button>
                </div>
              </form>
-
-             <div className="hero-actions">
+   
+             <div className="hero-actions animate-slide-up-delay-3">
                <button className="btn btn-outline-light" onClick={runNearbySearch}>
                  📍 Find Jobs Near Me
                </button>
                <span className="hero-stats">
-                 <strong>50+</strong> active requirements · <strong>{allAds?.length || 0}</strong> total listings
+                 <strong className="counter-animate">{allAds ? activeCount : '—'}</strong> active requirements · <strong>{allAds?.length || 0}</strong> total listings
                </span>
-             </div>
-
-             <div className="hero-trust">
-               <span>Trusted by 1000+ businesses across India</span>
              </div>
            </div>
          </div>
-
+   
+         {/* JOB CATEGORIES SECTION with images */}
+         <div className="categories-section">
+           <div className="container">
+             <AnimatedSection className="section-head text-center">
+               <h2>Popular Job Categories</h2>
+               <p>Find jobs in your preferred category from verified local businesses</p>
+             </AnimatedSection>
+             {allAds === null && !error && (
+               <p style={{ textAlign: 'center', color: 'var(--text-mute)' }}>Loading categories…</p>
+             )}
+             {error && <p style={{ textAlign: 'center', color: 'var(--danger)' }}>{error}</p>}
+             {allAds && jobCategories.length === 0 && (
+               <p style={{ textAlign: 'center', color: 'var(--text-mute)' }}>
+                 No active categories yet — be the first to post a requirement.
+               </p>
+             )}
+             {jobCategories.length > 0 && (
+               <div className="categories-grid">
+                 {jobCategories.map((cat, i) => (
+                   <AnimatedCard key={i} delay={i * 50} className="category-card" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, category: cat.name } })}>
+                     {cat.image && (
+                       <div className="category-card-image">
+                         <img src={cat.image} alt={cat.name} loading="lazy" />
+                         <div className="category-card-overlay"></div>
+                       </div>
+                     )}
+                     <div className="category-card-content">
+                       <div className="category-icon">{cat.icon}</div>
+                       <h4>{cat.name}</h4>
+                       <span className="category-count">{cat.count} {cat.count === 1 ? 'job' : 'jobs'}</span>
+                     </div>
+                   </AnimatedCard>
+                 ))}
+               </div>
+             )}
+           </div>
+         </div>
+   
+         {/* JOB TYPE HIGHLIGHTS */}
+         <div className="knowledge-packs">
+           <div className="container">
+             <AnimatedSection className="packs-header">
+               <h2>Find Your Perfect Job</h2>
+               <p>Browse through curated job listings from verified businesses</p>
+             </AnimatedSection>
+   
+             <div className="packs-grid">
+               <AnimatedCard delay={0} className="pack-card featured">
+                 <div className="pack-card-body pack-card-body-icon">
+                   <div className="pack-card-icon">💼</div>
+                   <h3>Full Time Jobs</h3>
+                   <p>Stable employment with fixed working hours and monthly salary.</p>
+                   <button className="btn btn-primary btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, search: 'full time' } })}>
+                     View Jobs →
+                   </button>
+                 </div>
+               </AnimatedCard>
+   
+               <AnimatedCard delay={100} className="pack-card">
+                 <div className="pack-card-body pack-card-body-icon">
+                   <div className="pack-card-icon">⏱️</div>
+                   <h3>Part Time Jobs</h3>
+                   <p>Flexible work opportunities for students and homemakers.</p>
+                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, search: 'part time' } })}>
+                     View Jobs →
+                   </button>
+                 </div>
+               </AnimatedCard>
+   
+               <AnimatedCard delay={200} className="pack-card">
+                 <div className="pack-card-body pack-card-body-icon">
+                   <div className="pack-card-icon">🧑‍💻</div>
+                   <h3>Freelance & Contract</h3>
+                   <p>Project-based work opportunities with flexible schedules.</p>
+                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, search: 'freelance' } })}>
+                     View Jobs →
+                   </button>
+                 </div>
+               </AnimatedCard>
+             </div>
+           </div>
+         </div>
+   
+         {/* HOW IT WORKS */}
+         <div className="how-it-works">
+           <div className="container">
+             <AnimatedSection className="section-head text-center">
+               <h2>How It Works</h2>
+               <p>Three simple steps to find your next job opportunity</p>
+             </AnimatedSection>
+             <div className="steps-grid">
+               {steps.map((step, i) => (
+                 <AnimatedCard key={i} delay={i * 100} className="step-card">
+                   <div className="step-number">{step.number}</div>
+                   <div className="step-icon">{step.icon}</div>
+                   <h3>{step.title}</h3>
+                   <p>{step.description}</p>
+                 </AnimatedCard>
+               ))}
+             </div>
+           </div>
+         </div>
+   
+         {/* LATEST JOBS SECTION */}
          <div className="container">
            <LocationBanner />
-
+   
            <div className="section-head">
              <h2>
                {geo.status === 'granted' ? `Jobs within ${HOME_DEFAULT_RADIUS} km of you` : 'Recently posted requirements'}
@@ -636,7 +876,7 @@
                View all →
              </button>
            </div>
-
+   
            {allAds === null && !error && <Spinner label="Loading advertisements..." />}
            {error && <ErrorState message={error} onRetry={load} />}
            {nearby && nearby.length === 0 && (
@@ -644,10 +884,15 @@
            )}
            {nearby && nearby.length > 0 && (
              <div className="grid">
-               {nearby.map((ad) => <AdCard key={ad.adId} ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />)}
+               {nearby.map((ad, i) => (
+                 <AnimatedCard key={ad.adId} delay={i * 50}>
+                   <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+                 </AnimatedCard>
+               ))}
              </div>
            )}
-
+   
+           {/* SEO CONTENT */}
            <div className="seo-content">
              <h2>Find Jobs Near You in India</h2>
              <p>
@@ -696,7 +941,7 @@
        </div>
      );
    }
-
+   
    function AdCard({ ad, onClick }) {
      const hasImages = ad.images && ad.images.length > 0;
      const isNew = new Date(ad.postedAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -724,26 +969,26 @@
        </div>
      );
    }
-
+   
    // ==============================================================
    // FILTER PANEL
    // ==============================================================
    function FilterPanel({ filters, setFilters, categoryOptions, geoStatus, onRequestLocation, resultCount }) {
      const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
      const reset = () => setFilters({ ...EMPTY_FILTERS });
-
+   
      return (
        <div className="filter-sidebar">
          <div className="filter-sidebar-head">
            <h3>Filters</h3>
            <button className="link-btn" onClick={reset}>Reset all</button>
          </div>
-
+   
          <div className="field">
            <label>Search</label>
            <input value={filters.search} onChange={(e) => set('search', e.target.value)} placeholder="Job title, business, skill..." />
          </div>
-
+   
          <div className="field">
            <label>Distance</label>
            {geoStatus === 'granted'
@@ -752,7 +997,7 @@
                <button className="btn btn-outline btn-sm btn-block" onClick={onRequestLocation}>📍 Enable location to filter by distance</button>
              )}
          </div>
-
+   
          <div className="field">
            <label>Worker category</label>
            <select value={filters.category} onChange={(e) => set('category', e.target.value)}>
@@ -760,7 +1005,7 @@
              {categoryOptions.map((c) => <option key={c} value={c}>{c}</option>)}
            </select>
          </div>
-
+   
          <div className="field">
            <label>Business type</label>
            <select value={filters.businessType} onChange={(e) => set('businessType', e.target.value)}>
@@ -768,27 +1013,27 @@
              {BUSINESS_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
            </select>
          </div>
-
+   
          <div className="field">
            <label>Minimum salary (₹/month)</label>
            <input type="number" min="0" value={filters.minSalary} onChange={(e) => set('minSalary', e.target.value)} placeholder="e.g. 10000" />
          </div>
-
+   
          <div className="field">
            <label>Experience</label>
            <input value={filters.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. fresher, 2+ years" />
          </div>
-
+   
          <div className="field">
            <label>Education</label>
            <input value={filters.education} onChange={(e) => set('education', e.target.value)} placeholder="e.g. 10th pass" />
          </div>
-
+   
          <div className="field">
            <label>Skills</label>
            <input value={filters.skills} onChange={(e) => set('skills', e.target.value)} placeholder="e.g. stitching, driving" />
          </div>
-
+   
          <div className="field">
            <label>Sort by</label>
            <select value={filters.sortBy} onChange={(e) => set('sortBy', e.target.value)}>
@@ -798,12 +1043,12 @@
              <option value="salary">Highest salary first</option>
            </select>
          </div>
-
+   
          {typeof resultCount === 'number' && <div className="filter-result-count">{resultCount} matching {resultCount === 1 ? 'job' : 'jobs'}</div>}
        </div>
      );
    }
-
+   
    // ==============================================================
    // ADVERTISEMENTS PAGE
    // ==============================================================
@@ -812,28 +1057,28 @@
      const [allAds, setAllAds] = useState(null);
      const [error, setError] = useState(null);
      const [filters, setFilters] = useState({ ...EMPTY_FILTERS, ...(initialFilters || {}) });
-
+   
      const load = useCallback(() => {
        setAllAds(null); setError(null);
        apiCall('getAds', {}).then((data) => setAllAds(data.ads)).catch((err) => setError(err.message));
      }, []);
      useEffect(() => { load(); }, [load]);
-
+   
      const results = useMemo(() => {
        if (!allAds) return null;
        return filterAndSortAds(allAds, filters, geo.coords);
      }, [allAds, filters, geo.coords]);
-
+   
      const categoryOptions = useMemo(() => buildCategoryOptions(allAds || []), [allAds]);
-
+   
      return (
        <div className="container">
          <div className="section-head" style={{ marginTop: 30 }}>
            <h2>All job requirements {results && <span className="count-pill">{results.length}</span>}</h2>
          </div>
-
+   
          <LocationBanner compact />
-
+   
          <div className="browse-layout">
            <FilterPanel
              filters={filters} setFilters={setFilters}
@@ -849,7 +1094,11 @@
              )}
              {results && results.length > 0 && (
                <div className="grid">
-                 {results.map((ad) => <AdCard key={ad.adId} ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />)}
+                 {results.map((ad, i) => (
+                   <AnimatedCard key={ad.adId} delay={i % 10 * 50}>
+                     <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+                   </AnimatedCard>
+                 ))}
                </div>
              )}
            </div>
@@ -857,9 +1106,9 @@
        </div>
      );
    }
-
+   
    // ==============================================================
-   // AD DETAILS PAGE - UPDATED WITH DIRECTIONS BUTTON
+   // AD DETAILS PAGE (unchanged, but with animated sections)
    // ==============================================================
    function AdDetailsPage({ adId, navigate }) {
      const { user } = useAuth();
@@ -873,14 +1122,14 @@
      const [reportOpen, setReportOpen] = useState(false);
      const [, setApplied] = useState(false);
      const [directionsLoading, setDirectionsLoading] = useState(false);
-
+   
      const load = useCallback(() => {
        setAd(null); setError(null);
        apiCall('getAdById', { adId }).then((data) => setAd(data.ad)).catch((err) => setError(err.message));
      }, [adId]);
-
+   
      useEffect(() => { load(); }, [load]);
-
+   
      useEffect(() => {
        if (user && ad) {
          apiCall('getSavedAds', { userId: user.userId })
@@ -891,17 +1140,15 @@
            .catch(() => {});
        }
      }, [user, ad]);
-
-     // Directions function - opens Google Maps with directions from current location to workplace
+   
      const openDirections = () => {
        if (!ad.locationLat || !ad.locationLng) {
          toast('Workplace location is not available.', 'error');
          return;
        }
-
+   
        setDirectionsLoading(true);
-
-       // Try to get user's current location for "from" parameter
+   
        if (navigator.geolocation) {
          navigator.geolocation.getCurrentPosition(
            (position) => {
@@ -912,9 +1159,7 @@
              window.open(url, '_blank');
              setDirectionsLoading(false);
            },
-           (error) => {
-             // If geolocation fails or is denied, open without origin (user can enter their location)
-             console.warn('Geolocation error:', error.message);
+           () => {
              const destination = `${ad.locationLat},${ad.locationLng}`;
              const url = `https://www.google.com/maps/dir//${destination}`;
              window.open(url, '_blank');
@@ -923,21 +1168,20 @@
            { enableHighAccuracy: true, timeout: 5000 }
          );
        } else {
-         // Browser doesn't support geolocation
          const destination = `${ad.locationLat},${ad.locationLng}`;
          const url = `https://www.google.com/maps/dir//${destination}`;
          window.open(url, '_blank');
          setDirectionsLoading(false);
        }
      };
-
+   
      if (error) return <div className="container"><ErrorState message={error} onRetry={load} /></div>;
      if (!ad) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
-
+   
      const distanceKm = (geo.coords && ad.locationLat != null && ad.locationLng != null)
        ? haversineDistanceKm(geo.coords.lat, geo.coords.lng, ad.locationLat, ad.locationLng)
        : null;
-
+   
      const toggleSave = async () => {
        if (!user) { navigate('login', { redirectTo: 'home' }); return; }
        try {
@@ -945,52 +1189,12 @@
          else { await apiCall('saveAd', { userId: user.userId, adId: ad.adId }); setSaved(true); toast('Saved to your dashboard.', 'success'); }
        } catch (err) { toast(err.message, 'error'); }
      };
-
-
+   
      const isOwner = user && ad.postedBy === user.userId;
      const images = ad.images || [];
-
-     const jobStructuredData = {
-       "@context": "https://schema.org",
-       "@type": "JobPosting",
-       "title": ad.jobTitle,
-       "description": ad.description || `Looking for ${ad.jobTitle} in ${ad.locationAddress || 'local area'}`,
-       "hiringOrganization": {
-         "@type": "Organization",
-         "name": ad.businessName
-       },
-       "jobLocation": {
-         "@type": "Place",
-         "address": {
-           "@type": "PostalAddress",
-           "addressLocality": ad.locationAddress || 'Local Area',
-           "addressCountry": "IN"
-         }
-       },
-       "employmentType": "FULL_TIME",
-       "datePosted": ad.postedAt,
-       "validThrough": new Date(new Date(ad.postedAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-       "baseSalary": ad.salary ? {
-         "@type": "MonetaryAmount",
-         "currency": "INR",
-         "value": {
-           "@type": "QuantitativeValue",
-           "value": parseSalaryNumber(ad.salary),
-           "unitText": "MONTH"
-         }
-       } : undefined,
-       "applicantLocationRequirements": {
-         "@type": "Country",
-         "name": "India"
-       }
-     };
-
+   
      return (
        <div className="container">
-         <script type="application/ld+json">
-           {JSON.stringify(jobStructuredData)}
-         </script>
-
          {ad.status === 'taken_down' && (
            <div className="takedown-banner" style={{ marginTop: 24 }}>
              <div>
@@ -1007,7 +1211,7 @@
              </div>
            </div>
          )}
-
+   
          {isOwner && ad.status !== 'taken_down' && (
            <div className="owner-toolbar">
              <span>This is your listing.</span>
@@ -1015,7 +1219,7 @@
              <button className="btn btn-outline btn-sm" onClick={() => navigate('dashboard')}>Go to dashboard</button>
            </div>
          )}
-
+   
          <div className="details-hero">
            <div>
              <div className="gallery-main" onClick={() => images.length && setLightboxIndex(activeImg)}>
@@ -1031,7 +1235,7 @@
                  ))}
                </div>
              )}
-
+   
              <div className="desc-block">
                <h3>Job Description</h3>
                <p>{ad.description || 'No additional description provided.'}</p>
@@ -1047,7 +1251,6 @@
                  <div className="map-wrap">
                    <MapView lat={ad.locationLat} lng={ad.locationLng} height="260px" />
                  </div>
-                 {/* DIRECTIONS BUTTON - NEW */}
                  <button 
                    className="btn btn-primary btn-block" 
                    onClick={openDirections}
@@ -1064,13 +1267,13 @@
                </div>
              )}
            </div>
-
+   
            <div className="details-panel">
              <StatusBadge status={ad.status} />
              <h1 style={{ marginTop: 10 }}>{ad.jobTitle}</h1>
              <div className="biz-name">{ad.businessName} · {ad.businessType}</div>
              {distanceKm != null && <DistanceChip km={distanceKm} />}
-
+   
              <div className="spec-list">
                <div className="spec-row"><span className="label">Worker category</span><span className="val">{categoryOf(ad)}</span></div>
                <div className="spec-row"><span className="label">Workers needed</span><span className="val">{ad.numWorkers}</span></div>
@@ -1081,7 +1284,7 @@
                <div className="spec-row"><span className="label">Contact</span><span className="val">{ad.contactPhone || 'See description'}</span></div>
                <div className="spec-row"><span className="label">Posted</span><span className="val">{new Date(ad.postedAt).toLocaleDateString()}</span></div>
              </div>
-
+   
              {ad.status === 'active' && !isOwner && (
                <div className="action-row">
                  <button className={`btn ${saved ? 'btn-success' : 'btn-outline'} btn-block`} onClick={toggleSave}>
@@ -1096,7 +1299,7 @@
              )}
            </div>
          </div>
-
+   
          {reportOpen && (
            <ReportModal
              adId={ad.adId}
@@ -1104,7 +1307,7 @@
              onSubmitted={() => { setReportOpen(false); toast('Report submitted. Our admin team will review it.', 'success'); }}
            />
          )}
-
+   
          <Lightbox
            images={images}
            index={lightboxIndex}
@@ -1114,14 +1317,14 @@
        </div>
      );
    }
-
+   
    function ReportModal({ adId, onClose, onSubmitted }) {
      const { user } = useAuth();
      const [reason, setReason] = useState('');
      const [description, setDescription] = useState('');
      const [submitting, setSubmitting] = useState(false);
      const [error, setError] = useState(null);
-
+   
      const submit = async () => {
        if (!reason) { setError('Please select a reason.'); return; }
        setSubmitting(true); setError(null);
@@ -1130,7 +1333,7 @@
          onSubmitted();
        } catch (err) { setError(err.message); } finally { setSubmitting(false); }
      };
-
+   
      return (
        <div className="modal-overlay" onClick={onClose}>
          <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -1139,7 +1342,7 @@
              <button className="modal-close" onClick={onClose}>✕</button>
            </div>
            <p style={{ color: 'var(--text-mute)', fontSize: 14 }}>Help us keep the board trustworthy. Tell us what's wrong with this listing.</p>
-
+   
            <div className="radio-group">
              {REPORT_REASONS.map((r) => (
                <label key={r} className={`radio-option ${reason === r ? 'selected' : ''}`}>
@@ -1148,12 +1351,12 @@
                </label>
              ))}
            </div>
-
+   
            <div className="field">
              <label>Additional details (optional)</label>
              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Anything else the admin should know..." />
            </div>
-
+   
            {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
            <button className="btn btn-danger btn-block" disabled={submitting} onClick={submit}>
              {submitting ? 'Submitting...' : 'Submit report'}
@@ -1162,16 +1365,16 @@
        </div>
      );
    }
-
+   
    // ==============================================================
-   // AD FORM PAGE
+   // AD FORM PAGE (unchanged)
    // ==============================================================
    const BLANK_FORM = {
      businessName: '', businessType: BUSINESS_TYPES[0], jobTitle: '', workerCategory: WORKER_CATEGORIES[0],
      customCategory: '', numWorkers: 1, salary: '', education: '', experience: '', skills: '', workingHours: '',
      description: '', contactPhone: '', locationLat: null, locationLng: null, locationAddress: ''
    };
-
+   
    function AdFormPage({ navigate, mode, adId }) {
      const { user } = useAuth();
      const toast = useToast();
@@ -1182,7 +1385,7 @@
      const [error, setError] = useState(null);
      const [loading, setLoading] = useState(isEdit);
      const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
-
+   
      useEffect(() => {
        if (!isEdit) return;
        apiCall('getAdById', { adId }).then((data) => {
@@ -1200,9 +1403,9 @@
          setLoading(false);
        }).catch(() => { setNotFoundOrForbidden(true); setLoading(false); });
      }, [isEdit, adId, user.userId]);
-
+   
      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
+   
      const submit = async (e) => {
        e.preventDefault();
        if (!form.businessName || !form.jobTitle) { setError('Business name and job title are required.'); return; }
@@ -1222,17 +1425,17 @@
          }
        } catch (err) { setError(err.message); } finally { setSubmitting(false); }
      };
-
+   
      if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
      if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
-
+   
      return (
        <div className="container form-page">
          <h1>{isEdit ? 'Edit your requirement' : 'Post a worker requirement'}</h1>
          <p style={{ color: 'var(--text-mute)', marginBottom: 24 }}>
            {isEdit ? 'Update the details below — changes go live immediately.' : 'Reach local job seekers directly — free to post.'}
          </p>
-
+   
          <form className="card" onSubmit={submit}>
            <div className="form-section-title">Business / workplace details</div>
            <div className="form-grid">
@@ -1245,7 +1448,7 @@
              <div className="field full"><label>Contact phone</label>
                <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="10-digit mobile number" /></div>
            </div>
-
+   
            <div className="form-section-title">Job details</div>
            <div className="form-grid">
              <div className="field"><label>Job title *</label>
@@ -1275,16 +1478,16 @@
              <div className="field full"><label>Description</label>
                <textarea value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Describe the role, responsibilities and any other details..." /></div>
            </div>
-
+   
            <div className="form-section-title">Workplace photos</div>
            <ImageUploader images={images} onChange={setImages} />
-
+   
            <div className="form-section-title">Workplace location</div>
            <LocationPicker
              lat={form.locationLat} lng={form.locationLng} address={form.locationAddress}
              onChange={(lat, lng, address) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng, locationAddress: address }))}
            />
-
+   
            {error && <div className="error-box" style={{ marginTop: 18 }}>{error}</div>}
            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
              <button className="btn btn-primary btn-block" disabled={submitting}>
@@ -1296,7 +1499,7 @@
        </div>
      );
    }
-
+   
    // ------------------------------------------------------------
    // IMAGE UPLOADER
    // ------------------------------------------------------------
@@ -1304,7 +1507,7 @@
      const [dragOver, setDragOver] = useState(false);
      const [uploading, setUploading] = useState([]);
      const inputRef = useRef(null);
-
+   
      const handleFiles = async (files) => {
        const list = Array.from(files).filter((f) => f.type.startsWith('image/'));
        for (const file of list) {
@@ -1320,9 +1523,9 @@
          }
        }
      };
-
+   
      const removeImage = (idx) => onChange((prev) => prev.filter((_, i) => i !== idx));
-
+   
      return (
        <div>
          <div
@@ -1354,7 +1557,7 @@
        </div>
      );
    }
-
+   
    // ------------------------------------------------------------
    // LOCATION PICKER
    // ------------------------------------------------------------
@@ -1362,15 +1565,15 @@
      const [localAddress, setLocalAddress] = useState(address || '');
      const [coords, setCoords] = useState({ lat: lat || null, lng: lng || null });
      const [locating, setLocating] = useState(false);
-
+   
      useEffect(() => { setLocalAddress(address || ''); }, [address]);
      useEffect(() => { setCoords({ lat: lat || null, lng: lng || null }); }, [lat, lng]);
-
+   
      const handlePick = (la, ln) => {
        setCoords({ lat: la, lng: ln });
        onChange(la, ln, localAddress);
      };
-
+   
      const useCurrentLocation = () => {
        if (!navigator.geolocation) { alert('Geolocation is not supported by this browser.'); return; }
        setLocating(true);
@@ -1385,7 +1588,7 @@
          { enableHighAccuracy: true, timeout: 10000 }
        );
      };
-
+   
      return (
        <div>
          <div className="map-toolbar">
@@ -1410,56 +1613,54 @@
        </div>
      );
    }
-
+   
    // ==============================================================
    // USER DASHBOARD
    // ==============================================================
    function UserDashboardPage({ navigate }) {
      const { user } = useAuth();
      const [tab, setTab] = useState('myads');
-
+   
      return (
        <div className="container form-page" style={{ maxWidth: 1000 }}>
          <h1>My dashboard</h1>
          <p style={{ color: 'var(--text-mute)', marginBottom: 20 }}>Welcome back, {user.name}.</p>
-
+   
          <div className="tabs">
            <button className={`tab ${tab === 'myads' ? 'active' : ''}`} onClick={() => setTab('myads')}>My posted ads</button>
            <button className={`tab ${tab === 'saved' ? 'active' : ''}`} onClick={() => setTab('saved')}>Saved advertisements</button>
-
            <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>My reports</button>
          </div>
-
+   
          {tab === 'myads' && <MyAdsTab navigate={navigate} />}
          {tab === 'saved' && <SavedAdsTab navigate={navigate} />}
-         {tab === 'applied' && <AppliedJobsTab navigate={navigate} />}
          {tab === 'reports' && <MyReportsTab />}
        </div>
      );
    }
-
+   
    function SavedAdsTab({ navigate }) {
      const { user } = useAuth();
      const toast = useToast();
      const [ads, setAds] = useState(null);
      const [error, setError] = useState(null);
-
+   
      const load = useCallback(() => {
        setAds(null); setError(null);
        apiCall('getSavedAds', { userId: user.userId }).then((d) => setAds(d.ads)).catch((e) => setError(e.message));
      }, [user.userId]);
-
+   
      useEffect(() => { load(); }, [load]);
-
+   
      const unsave = async (adId) => {
        try { await apiCall('removeSavedAd', { userId: user.userId, adId }); toast('Removed from saved.', 'success'); load(); }
        catch (err) { toast(err.message, 'error'); }
      };
-
+   
      if (ads === null && !error) return <Spinner label="Loading saved advertisements..." />;
      if (error) return <ErrorState message={error} onRetry={load} />;
      if (ads.length === 0) return <EmptyState icon="⭐" title="No saved advertisements yet" message="Save listings you're interested in to find them here later." />;
-
+   
      return (
        <div className="grid">
          {ads.map((ad) => (
@@ -1471,41 +1672,21 @@
        </div>
      );
    }
-
-   function AppliedJobsTab({ navigate }) {
-     const { user } = useAuth();
-     const [ads, setAds] = useState(null);
-     const [error, setError] = useState(null);
-
-     useEffect(() => {
-       apiCall('getAppliedAds', { userId: user.userId }).then((d) => setAds(d.ads)).catch((e) => setError(e.message));
-     }, [user.userId]);
-
-     if (ads === null && !error) return <Spinner label="Loading applied jobs..." />;
-     if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
-     if (ads.length === 0) return <EmptyState icon="📋" title="No applications yet" message="Apply to jobs to track them here." />;
-
-     return (
-       <div className="grid">
-         {ads.map((ad) => <AdCard key={ad.adId} ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />)}
-       </div>
-     );
-   }
-
+   
    function MyAdsTab({ navigate }) {
      const { user } = useAuth();
      const toast = useToast();
      const [ads, setAds] = useState(null);
      const [error, setError] = useState(null);
      const [busyId, setBusyId] = useState(null);
-
+   
      const load = useCallback(() => {
        setAds(null); setError(null);
        apiCall('getMyAds', { userId: user.userId }).then((d) => setAds(d.ads)).catch((e) => setError(e.message));
      }, [user.userId]);
-
+   
      useEffect(() => { load(); }, [load]);
-
+   
      const toggleStatus = async (ad) => {
        const nextStatus = ad.status === 'active' ? 'inactive' : 'active';
        setBusyId(ad.adId);
@@ -1515,7 +1696,7 @@
          load();
        } catch (err) { toast(err.message, 'error'); } finally { setBusyId(null); }
      };
-
+   
      const remove = async (ad) => {
        if (!window.confirm(`Delete "${ad.jobTitle}" permanently? This can't be undone.`)) return;
        setBusyId(ad.adId);
@@ -1525,13 +1706,13 @@
          load();
        } catch (err) { toast(err.message, 'error'); } finally { setBusyId(null); }
      };
-
+   
      if (ads === null && !error) return <Spinner label="Loading your advertisements..." />;
      if (error) return <ErrorState message={error} onRetry={load} />;
      if (ads.length === 0) return (
        <EmptyState icon="🏭" title="You haven't posted any requirements yet" message="Post a worker requirement to reach local job seekers." />
      );
-
+   
      return (
        <div className="grid">
          {ads.map((ad) => (
@@ -1551,23 +1732,23 @@
        </div>
      );
    }
-
+   
    function MyReportsTab() {
      const { user } = useAuth();
      const [reports, setReports] = useState(null);
      const [error, setError] = useState(null);
-
+   
      const load = useCallback(() => {
        setReports(null); setError(null);
        apiCall('getUserReports', { userId: user.userId }).then((d) => setReports(d.reports)).catch((e) => setError(e.message));
      }, [user.userId]);
-
+   
      useEffect(() => { load(); }, [load]);
-
+   
      if (reports === null && !error) return <Spinner label="Loading your reports..." />;
      if (error) return <ErrorState message={error} onRetry={load} />;
      if (reports.length === 0) return <EmptyState icon="🚩" title="No reports submitted" message="Reports you file on misleading advertisements will show up here." />;
-
+   
      return (
        <div className="table-wrap">
          <table>
@@ -1586,7 +1767,7 @@
        </div>
      );
    }
-
+   
    // ==============================================================
    // ADMIN DASHBOARD
    // ==============================================================
@@ -1608,19 +1789,19 @@
        </div>
      );
    }
-
+   
    function AdminOverviewTab() {
      const { user } = useAuth();
      const [stats, setStats] = useState(null);
      const [error, setError] = useState(null);
-
+   
      useEffect(() => {
        apiCall('getDashboardStats', { adminId: user.userId }).then((d) => setStats(d.stats)).catch((e) => setError(e.message));
      }, [user.userId]);
-
+   
      if (error) return <ErrorState message={error} />;
      if (!stats) return <Spinner label="Loading stats..." />;
-
+   
      return (
        <div>
          <div className="stats-grid">
@@ -1646,20 +1827,20 @@
        </div>
      );
    }
-
+   
    function AdminAdsTab() {
      const { user } = useAuth();
      const toast = useToast();
      const [ads, setAds] = useState(null);
      const [error, setError] = useState(null);
-
+   
      const load = useCallback(() => {
        setAds(null); setError(null);
        apiCall('getAllAds', { adminId: user.userId }).then((d) => setAds(d.ads)).catch((e) => setError(e.message));
      }, [user.userId]);
-
+   
      useEffect(() => { load(); }, [load]);
-
+   
      const takedown = async (adId) => {
        const reason = prompt('Reason for takedown (shown to users):', 'This listing was found to be misleading.');
        if (reason === null) return;
@@ -1670,10 +1851,10 @@
        try { await apiCall('restoreAd', { adminId: user.userId, adId }); toast('Advertisement restored.', 'success'); load(); }
        catch (err) { toast(err.message, 'error'); }
      };
-
+   
      if (ads === null && !error) return <Spinner label="Loading advertisements..." />;
      if (error) return <ErrorState message={error} onRetry={load} />;
-
+   
      return (
        <div className="table-wrap">
          <table>
@@ -1698,25 +1879,25 @@
        </div>
      );
    }
-
+   
    function AdminReportsTab() {
      const { user } = useAuth();
      const toast = useToast();
      const [reports, setReports] = useState(null);
      const [error, setError] = useState(null);
      const [reviewing, setReviewing] = useState(null);
-
+   
      const load = useCallback(() => {
        setReports(null); setError(null);
        apiCall('getAllReports', { adminId: user.userId }).then((d) => setReports(d.reports)).catch((e) => setError(e.message));
      }, [user.userId]);
-
+   
      useEffect(() => { load(); }, [load]);
-
+   
      if (reports === null && !error) return <Spinner label="Loading reports..." />;
      if (error) return <ErrorState message={error} onRetry={load} />;
      if (reports.length === 0) return <EmptyState icon="✅" title="No reports" message="No advertisements have been reported yet." />;
-
+   
      return (
        <div>
          <div className="table-wrap">
@@ -1742,13 +1923,13 @@
        </div>
      );
    }
-
+   
    function AdminReviewModal({ report, onClose, onDone }) {
      const { user } = useAuth();
      const [note, setNote] = useState('');
      const [busy, setBusy] = useState(false);
      const [error, setError] = useState(null);
-
+   
      const decide = async (decision) => {
        setBusy(true); setError(null);
        try {
@@ -1759,12 +1940,12 @@
          onDone();
        } catch (err) { setError(err.message); } finally { setBusy(false); }
      };
-
+   
      return (
        <div className="modal-overlay" onClick={onClose}>
          <div className="modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
            <div className="modal-head"><h2>Review report</h2><button className="modal-close" onClick={onClose}>✕</button></div>
-
+   
            {report.ad ? (
              <div className="spec-list">
                <div className="spec-row"><span className="label">Job title</span><span className="val">{report.ad.jobTitle}</span></div>
@@ -1772,19 +1953,19 @@
                <div className="spec-row"><span className="label">Ad status</span><span className="val"><StatusBadge status={report.ad.status} /></span></div>
              </div>
            ) : <p style={{ color: 'var(--text-mute)' }}>This advertisement has already been removed.</p>}
-
+   
            <div className="form-section-title">Report details</div>
            <div className="spec-list">
              <div className="spec-row"><span className="label">Reported by</span><span className="val">{report.userName}</span></div>
              <div className="spec-row"><span className="label">Reason</span><span className="val">{report.reason}</span></div>
            </div>
            {report.description && <p style={{ fontSize: 14 }}>"{report.description}"</p>}
-
+   
            <div className="field" style={{ marginTop: 14 }}>
              <label>Admin note (optional, shown internally)</label>
              <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Internal note about this decision..." />
            </div>
-
+   
            {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
            <div style={{ display: 'flex', gap: 10 }}>
              <button className="btn btn-outline btn-block" disabled={busy} onClick={() => decide('dismiss')}>Dismiss report</button>
@@ -1794,19 +1975,19 @@
        </div>
      );
    }
-
+   
    function AdminUsersTab() {
      const { user } = useAuth();
      const [users, setUsers] = useState(null);
      const [error, setError] = useState(null);
-
+   
      useEffect(() => {
        apiCall('getAllUsers', { adminId: user.userId }).then((d) => setUsers(d.users)).catch((e) => setError(e.message));
      }, [user.userId]);
-
+   
      if (error) return <ErrorState message={error} />;
      if (!users) return <Spinner label="Loading users..." />;
-
+   
      return (
        <div className="table-wrap">
          <table>
@@ -1824,7 +2005,7 @@
        </div>
      );
    }
-
+   
    // ==============================================================
    // LOGIN / REGISTER PAGE
    // ==============================================================
@@ -1835,9 +2016,9 @@
      const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
      const [busy, setBusy] = useState(false);
      const [error, setError] = useState(null);
-
+   
      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
+   
      const submit = async (e) => {
        e.preventDefault();
        setBusy(true); setError(null);
@@ -1850,7 +2031,7 @@
          navigate(redirectTo || 'home');
        } catch (err) { setError(err.message); } finally { setBusy(false); }
      };
-
+   
      return (
        <div className="auth-wrap">
          <div className="auth-card">
@@ -1865,7 +2046,7 @@
                <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => set('phone', e.target.value)} /></div>
              )}
              <div className="field"><label>Password</label><input required type="password" value={form.password} onChange={(e) => set('password', e.target.value)} /></div>
-
+   
              {error && <div className="error-box" style={{ marginBottom: 14 }}>{error}</div>}
              <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Please wait...' : (mode === 'login' ? 'Log in' : 'Sign up')}</button>
            </form>
@@ -1878,7 +2059,7 @@
        </div>
      );
    }
-
+   
    // ==============================================================
    // EXPORT
    // ==============================================================
