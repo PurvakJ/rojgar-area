@@ -859,7 +859,7 @@
    }
 
    // ==============================================================
-   // AD DETAILS PAGE
+   // AD DETAILS PAGE - UPDATED WITH DIRECTIONS BUTTON
    // ==============================================================
    function AdDetailsPage({ adId, navigate }) {
      const { user } = useAuth();
@@ -872,6 +872,7 @@
      const [saved, setSaved] = useState(false);
      const [reportOpen, setReportOpen] = useState(false);
      const [, setApplied] = useState(false);
+     const [directionsLoading, setDirectionsLoading] = useState(false);
 
      const load = useCallback(() => {
        setAd(null); setError(null);
@@ -890,6 +891,45 @@
            .catch(() => {});
        }
      }, [user, ad]);
+
+     // Directions function - opens Google Maps with directions from current location to workplace
+     const openDirections = () => {
+       if (!ad.locationLat || !ad.locationLng) {
+         toast('Workplace location is not available.', 'error');
+         return;
+       }
+
+       setDirectionsLoading(true);
+
+       // Try to get user's current location for "from" parameter
+       if (navigator.geolocation) {
+         navigator.geolocation.getCurrentPosition(
+           (position) => {
+             const { latitude, longitude } = position.coords;
+             const destination = `${ad.locationLat},${ad.locationLng}`;
+             const origin = `${latitude},${longitude}`;
+             const url = `https://www.google.com/maps/dir/${origin}/${destination}`;
+             window.open(url, '_blank');
+             setDirectionsLoading(false);
+           },
+           (error) => {
+             // If geolocation fails or is denied, open without origin (user can enter their location)
+             console.warn('Geolocation error:', error.message);
+             const destination = `${ad.locationLat},${ad.locationLng}`;
+             const url = `https://www.google.com/maps/dir//${destination}`;
+             window.open(url, '_blank');
+             setDirectionsLoading(false);
+           },
+           { enableHighAccuracy: true, timeout: 5000 }
+         );
+       } else {
+         // Browser doesn't support geolocation
+         const destination = `${ad.locationLat},${ad.locationLng}`;
+         const url = `https://www.google.com/maps/dir//${destination}`;
+         window.open(url, '_blank');
+         setDirectionsLoading(false);
+       }
+     };
 
      if (error) return <div className="container"><ErrorState message={error} onRetry={load} /></div>;
      if (!ad) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
@@ -1007,6 +1047,20 @@
                  <div className="map-wrap">
                    <MapView lat={ad.locationLat} lng={ad.locationLng} height="260px" />
                  </div>
+                 {/* DIRECTIONS BUTTON - NEW */}
+                 <button 
+                   className="btn btn-primary btn-block" 
+                   onClick={openDirections}
+                   disabled={directionsLoading}
+                   style={{ marginTop: 12 }}
+                 >
+                   {directionsLoading ? 'Getting your location...' : '🗺️ Get Directions'}
+                 </button>
+                 {geo.status === 'denied' && (
+                   <p style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
+                     Location permission denied. You'll need to enter your location manually in Google Maps.
+                   </p>
+                 )}
                </div>
              )}
            </div>
