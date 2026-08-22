@@ -2,42 +2,95 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
+    <meta name="theme-color" content="#1a3a5c" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Rojgar AREA — Find Jobs Near Me | Local Employment in India</title>
+    <meta name="description" content="Find jobs near me in India. Search local employment opportunities, rojgar, kaam ki vacancy, and jobs by city. Connect with businesses hiring near you." />
+    <meta name="keywords" content="jobs near me, rojgar, kaam, naukri near me, local jobs, employment opportunities near me, jobs in India, jobs in Punjab, hiring near me, fresher jobs" />
+    <link rel="canonical" href="https://kaamboard.in/" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://kaamboard.in/" />
+    <meta property="og:title" content="Kaam Board — Find Jobs Near Me | Local Employment in India" />
+    <meta property="og:description" content="Find jobs near me in India. Search local employment, rojgar, kaam ki vacancy, and jobs by city." />
+    <meta property="og:image" content="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png" />
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://kaamboard.in/" />
+    <meta name="twitter:title" content="Kaam Board — Find Jobs Near Me | Local Employment in India" />
+    <meta name="twitter:description" content="Find jobs near me in India. Search local employment, rojgar, kaam ki vacancy, and jobs by city." />
+    <meta name="twitter:image" content="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png" />
+    
+    <!-- ===== UPDATED FAVICON & APP ICON ===== -->
+    <link rel="icon" href="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png" type="image/png" />
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
+    
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://api.cloudinary.com" />
+    <link rel="preconnect" href="https://script.google.com" />
+    
+    <!-- Structured Data: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Kaam Board",
+      "description": "India's local job platform connecting businesses with workers",
+      "url": "https://kaamboard.in/",
+      "logo": "https://kaamboard.in/logo.png",
+      "sameAs": [
+        "https://twitter.com/kaamboard",
+        "https://facebook.com/kaamboard"
+      ]
+    }
+    </script>
+    
+    <!-- Structured Data: WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Kaam Board",
+      "url": "https://kaamboard.in/",
+      "description": "Find jobs near me in India. Local employment, rojgar, kaam ki vacancy.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://kaamboard.in/jobs?search={search_term}",
+        "query-input": "required name=search_term"
+      }
+    }
+    </script>
+    
+    <title>Kaam Board</title>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <noscript>You need to enable JavaScript to run this app. Please enable JavaScript in your browser settings.</noscript>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
+    
+    <!-- React 18 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- App Entry Point - Fixed with proper Babel configuration -->
+    <script type="text/babel" data-presets="react,stage-3" data-type="module">
+      import App from './app.js';
+      import React from 'react';
+      import ReactDOM from 'react-dom';
+      
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<App />);
+    </script>
   </body>
 </html>
