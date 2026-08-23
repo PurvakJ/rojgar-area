@@ -1,9 +1,75 @@
 /* ==========================================================
-   Rojgar AREA — Frontend (Enhanced)
+   Rojgar AREA — Frontend (Enhanced v6)
    Plain React 18 + Babel-standalone (no build step).
    Backend: Google Apps Script Web App (Code.gs)
    Images:  Cloudinary unsigned upload
    Map:     Leaflet + OpenStreetMap tiles (no API key needed)
+
+   NEW IN THIS VERSION (v6):
+   - "Browse Jobs" and "Find Workers" no longer show a permanent
+     filter sidebar. Filters now live inside a hamburger-triggered
+     slide-in drawer, opened with a "☰ Filters" button next to the
+     page heading — same filter fields, just tucked away until
+     needed, so results get the full width and the page feels
+     less cluttered.
+   - "My Dashboard" section switcher (My posted ads / Saved
+     advertisements / My reports / My Profile) now also opens
+     from a "☰ Menu" hamburger drawer instead of a row of tabs.
+   - My Dashboard now opens on "Saved advertisements" by default
+     for worker-only accounts (who can't post ads), and on
+     "My posted ads" for business/both/admin accounts.
+
+   CARRIED OVER FROM v5:
+   - Worker profile: phone number is now MANDATORY for worker/both
+     accounts (enforced client-side in "My Profile" and server-side in
+     updateWorkerProfile), and is shown on every worker card and on the
+     worker's public profile page so businesses in "Find Workers" can
+     always reach them.
+   - Worker profile: optional public email field (separate from the
+     login email), optional profile photo (shown as a circular avatar;
+     falls back to a generic person icon when not set), and optional
+     multi-image "resume" upload (photos of a resume / certificates /
+     ID proof) — all via the same Cloudinary unsigned upload used for
+     advertisement photos.
+   - Worker profile page and Worker Browse cards now show a
+     "Get Directions" button / the worker's phone number next to a
+     WhatsApp button, mirroring the advertisement details page.
+   - Advertisement details page now shows the contact phone number as
+     a tappable "Call" link right next to the WhatsApp button.
+   - Footer buttons are now all functional: Privacy Policy, Terms of
+     Service and Cookie Policy open an in-app modal with real content,
+     and a new "Contact Developer" / "About Us" action opens a modal
+     with the developer's logo, email and website.
+
+   CARRIED OVER FROM v4:
+   - Three-role permission model, same login for everyone (worker /
+     business / both / admin). Posting is gated with canPostAds(user)
+     in the nav, in routing, and server-side in createAd.
+   - "My Profile" requires a dropped map pin before saving a
+     worker/both profile (an address alone is not enough for
+     "Workers near you" to find you).
+   - Admin can suspend/restore a worker or business profile.
+   - Workers have a real location (lat/lng/address), settable from
+     "My Profile". Workers Browse page mirrors the Jobs Browse page:
+     location banner, radius filter, nearest-first sort, distance chip.
+   - Worker profiles (create/edit, browse, view + review)
+   - Reviews & star ratings (businesses <-> workers)
+   - WhatsApp "Apply Now" deep link
+   - Urgent / "Hiring Today" jobs
+   - Salary benchmarking hint on the post form
+   - Verified badge (admin-controlled)
+   - Referral codes
+   - EN / Hindi / Punjabi language switch
+
+   IMAGE UPLOAD ("Unknown API key" error):
+   - Image uploads go straight from the browser to Cloudinary using
+     CONFIG.CLOUDINARY below. "Unknown API key" / "Unknown API key" is
+     a Cloudinary-side error, not an Apps Script error — it means
+     cloudName and/or uploadPreset don't match a real Cloudinary
+     account, OR the upload preset exists but is not set to
+     "Unsigned" (Cloudinary Dashboard > Settings > Upload > Upload
+     presets). Fix by replacing BOTH values below with your own
+     Cloudinary cloud name and an unsigned upload preset you created.
    ========================================================== */
    import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo,} from 'react';
    import './App.css';
@@ -22,10 +88,14 @@
    // CONFIG
    // ------------------------------------------------------------
    const CONFIG = {
-     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwHSz0jIvlnM2SJJ_BB6S4GBQ-EQg77CvQR7ULnmKNdVWOYJ2XHu_5NIE6fsDJ-Zbzm/exec',
+     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzIBikVtx2QBDPnb4Hou8RrLFADWKK7Iswy1ArxkXeDidH0vgs8XQQLBVwAYWSQO5Ys/exec',
      CLOUDINARY: {
-       cloudName: 'dgrt7q2h3',
-       uploadPreset: 'pgrental'
+       // TODO: replace with YOUR Cloudinary cloud name (Dashboard, top-left)
+       // and an UNSIGNED upload preset you created for this project.
+       // The current values below are almost certainly wrong for your
+       // account, which is why uploads fail with "Unknown API key".
+       cloudName: 'dm9gg8yss',
+       uploadPreset: 'images'
      }
    };
    
@@ -52,6 +122,12 @@
    const HOME_MAX_RESULTS = 12;
    const DEFAULT_CENTER = { lat: 30.9010, lng: 75.8573 };
    
+   const USER_TYPES = [
+     { value: 'worker', label: 'Job Seeker (Worker)' },
+     { value: 'business', label: 'Business / Employer' },
+     { value: 'both', label: 'Both' }
+   ];
+   
    // Icons for worker categories
    const CATEGORY_ICONS = {
      'Skilled Labour': '🔧', 'Unskilled Labour': '💪', 'Driver': '🚗', 'Electrician': '⚡',
@@ -71,6 +147,80 @@
      'Security Guard': 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=400&h=300&fit=crop',
      'Cook / Kitchen Staff': 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&h=300&fit=crop'
    };
+   
+   // ------------------------------------------------------------
+   // I18N — English / Hindi / Punjabi
+   // ------------------------------------------------------------
+   const LANGUAGES = [
+     { code: 'en', label: 'English' },
+     { code: 'hi', label: 'हिंदी' },
+     { code: 'pa', label: 'ਪੰਜਾਬੀ' }
+   ];
+   
+   const I18N = {
+     en: {
+       home: 'Home', browseJobs: 'Browse Jobs', postRequirement: 'Post a Requirement',
+       findWorkers: 'Find Workers', myDashboard: 'My Dashboard', admin: 'Admin',
+       login: 'Log in', signup: 'Sign up', logout: 'Log out',
+       heroTitle: 'Find jobs near you — posted directly by local businesses',
+       heroSubtitle: 'Discover worker requirements from factories, shops, restaurants, and workshops in your area. No middlemen, direct connection.',
+       searchPlaceholder: 'Search job title, skill, or business...',
+       locationPlaceholder: 'Enter your location',
+       searchJobs: 'Search Jobs', findJobsNearMe: '📍 Find Jobs Near Me',
+       popularCategories: 'Popular Job Categories', howItWorks: 'How It Works',
+       urgentHiring: '🔥 Hiring Today — Urgent Requirements',
+       viewAll: 'View all →', applyWhatsApp: '💬 Apply on WhatsApp',
+       getDirections: '🗺️ Get Directions', save: '☆ Save advertisement', saved: '✓ Saved',
+       report: '🚩 Report this advertisement', reviews: 'Reviews', writeReview: 'Write a review',
+       verified: 'Verified', workersNearYou: 'Workers near you', availableNow: 'Available now',
+       viewProfile: 'View profile', myProfile: 'My Profile', referral: 'Your referral code',
+       postAJob: 'Post a worker requirement', salaryBenchmark: 'Typical salary for this category'
+     },
+     hi: {
+       home: 'होम', browseJobs: 'नौकरियां देखें', postRequirement: 'ज़रूरत पोस्ट करें',
+       findWorkers: 'कामगार खोजें', myDashboard: 'मेरा डैशबोर्ड', admin: 'एडमिन',
+       login: 'लॉग इन', signup: 'साइन अप', logout: 'लॉग आउट',
+       heroTitle: 'अपने पास की नौकरियां खोजें — स्थानीय व्यवसायों द्वारा सीधे पोस्ट की गई',
+       heroSubtitle: 'अपने क्षेत्र की फैक्ट्रियों, दुकानों, रेस्तरां और वर्कशॉप की जरूरतें खोजें। कोई बिचौलिया नहीं, सीधा संपर्क।',
+       searchPlaceholder: 'नौकरी का नाम, कौशल या व्यवसाय खोजें...',
+       locationPlaceholder: 'अपना स्थान दर्ज करें',
+       searchJobs: 'नौकरियां खोजें', findJobsNearMe: '📍 पास की नौकरियां खोजें',
+       popularCategories: 'लोकप्रिय नौकरी श्रेणियां', howItWorks: 'यह कैसे काम करता है',
+       urgentHiring: '🔥 आज ही भर्ती — तत्काल जरूरत',
+       viewAll: 'सभी देखें →', applyWhatsApp: '💬 व्हाट्सएप पर आवेदन करें',
+       getDirections: '🗺️ रास्ता दिखाएं', save: '☆ सेव करें', saved: '✓ सेव किया गया',
+       report: '🚩 रिपोर्ट करें', reviews: 'समीक्षाएं', writeReview: 'समीक्षा लिखें',
+       verified: 'सत्यापित', workersNearYou: 'आपके पास के कामगार', availableNow: 'अभी उपलब्ध',
+       viewProfile: 'प्रोफ़ाइल देखें', myProfile: 'मेरी प्रोफ़ाइल', referral: 'आपका रेफरल कोड',
+       postAJob: 'कामगार की जरूरत पोस्ट करें', salaryBenchmark: 'इस श्रेणी के लिए औसत वेतन'
+     },
+     pa: {
+       home: 'ਹੋਮ', browseJobs: 'ਨੌਕਰੀਆਂ ਵੇਖੋ', postRequirement: 'ਲੋੜ ਪੋਸਟ ਕਰੋ',
+       findWorkers: 'ਕਾਮੇ ਲੱਭੋ', myDashboard: 'ਮੇਰਾ ਡੈਸ਼ਬੋਰਡ', admin: 'ਐਡਮਿਨ',
+       login: 'ਲਾਗਇਨ', signup: 'ਸਾਈਨ ਅੱਪ', logout: 'ਲਾਗਆਉਟ',
+       heroTitle: 'ਆਪਣੇ ਨੇੜੇ ਨੌਕਰੀਆਂ ਲੱਭੋ — ਸਥਾਨਕ ਕਾਰੋਬਾਰਾਂ ਦੁਆਰਾ ਸਿੱਧੀਆਂ ਪੋਸਟ ਕੀਤੀਆਂ',
+       heroSubtitle: 'ਆਪਣੇ ਖੇਤਰ ਦੀਆਂ ਫੈਕਟਰੀਆਂ, ਦੁਕਾਨਾਂ, ਰੈਸਟੋਰੈਂਟਾਂ ਅਤੇ ਵਰਕਸ਼ਾਪਾਂ ਦੀਆਂ ਲੋੜਾਂ ਲੱਭੋ। ਕੋਈ ਵਿਚੋਲਾ ਨਹੀਂ।',
+       searchPlaceholder: 'ਨੌਕਰੀ ਦਾ ਨਾਮ, ਹੁਨਰ ਜਾਂ ਕਾਰੋਬਾਰ ਖੋਜੋ...',
+       locationPlaceholder: 'ਆਪਣੀ ਥਾਂ ਦਰਜ ਕਰੋ',
+       searchJobs: 'ਨੌਕਰੀਆਂ ਖੋਜੋ', findJobsNearMe: '📍 ਨੇੜੇ ਦੀਆਂ ਨੌਕਰੀਆਂ ਲੱਭੋ',
+       popularCategories: 'ਪ੍ਰਸਿੱਧ ਨੌਕਰੀ ਸ਼੍ਰੇਣੀਆਂ', howItWorks: 'ਇਹ ਕਿਵੇਂ ਕੰਮ ਕਰਦਾ ਹੈ',
+       urgentHiring: '🔥 ਅੱਜ ਹੀ ਭਰਤੀ — ਜ਼ਰੂਰੀ ਲੋੜ',
+       viewAll: 'ਸਾਰੇ ਵੇਖੋ →', applyWhatsApp: '💬 ਵਟਸਐਪ ਤੇ ਅਪਲਾਈ ਕਰੋ',
+       getDirections: '🗺️ ਰਸਤਾ ਵੇਖੋ', save: '☆ ਸੇਵ ਕਰੋ', saved: '✓ ਸੇਵ ਕੀਤਾ',
+       report: '🚩 ਰਿਪੋਰਟ ਕਰੋ', reviews: 'ਸਮੀਖਿਆਵਾਂ', writeReview: 'ਸਮੀਖਿਆ ਲਿਖੋ',
+       verified: 'ਪ੍ਰਮਾਣਿਤ', workersNearYou: 'ਤੁਹਾਡੇ ਨੇੜੇ ਦੇ ਕਾਮੇ', availableNow: 'ਹੁਣ ਉਪਲਬਧ',
+       viewProfile: 'ਪ੍ਰੋਫਾਈਲ ਵੇਖੋ', myProfile: 'ਮੇਰੀ ਪ੍ਰੋਫਾਈਲ', referral: 'ਤੁਹਾਡਾ ਰੈਫਰਲ ਕੋਡ',
+       postAJob: 'ਕਾਮੇ ਦੀ ਲੋੜ ਪੋਸਟ ਕਰੋ', salaryBenchmark: 'ਇਸ ਸ਼੍ਰੇਣੀ ਲਈ ਔਸਤ ਤਨਖਾਹ'
+     }
+   };
+   
+   const LanguageContext = createContext(null);
+   const useLanguage = () => useContext(LanguageContext);
+   
+   function useT() {
+     const { lang } = useLanguage();
+     return useCallback((key) => (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key, [lang]);
+   }
    
    // ------------------------------------------------------------
    // API
@@ -136,8 +286,10 @@
      return Array.from(set).sort();
    }
    
-   function withDistances(ads, userCoords) {
-     return ads.map((a) => {
+   // Generic — works for any object list with locationLat/locationLng fields
+   // (used for both job advertisements AND worker profiles).
+   function withDistances(items, userCoords) {
+     return items.map((a) => {
        let distanceKm = null;
        if (userCoords && a.locationLat != null && a.locationLng != null) {
          distanceKm = haversineDistanceKm(userCoords.lat, userCoords.lng, a.locationLat, a.locationLng);
@@ -146,9 +298,58 @@
      });
    }
    
+   // Builds a wa.me deep link. Assumes Indian 10-digit mobile numbers by default.
+   function buildWhatsAppLink(phone, message) {
+     if (!phone) return null;
+     let digits = String(phone).replace(/\D/g, '');
+     if (digits.length === 10) digits = '91' + digits;
+     if (!digits) return null;
+     const text = encodeURIComponent(message || 'Hi, I saw your job posting on Rojgar AREA and I am interested.');
+     return `https://wa.me/${digits}?text=${text}`;
+   }
+   
+   // Opens Google Maps directions to the given lat/lng. Tries to use the
+   // visitor's current position as the origin (silently falls back to a
+   // destination-only link if permission is denied or unavailable) —
+   // shared by the advertisement details page and the worker profile page.
+   function openDirectionsToCoords(lat, lng, onDone) {
+     if (lat == null || lng == null) { onDone && onDone(false); return; }
+     const go = (originStr) => {
+       const destination = `${lat},${lng}`;
+       const url = originStr
+         ? `https://www.google.com/maps/dir/${originStr}/${destination}`
+         : `https://www.google.com/maps/dir//${destination}`;
+       window.open(url, '_blank');
+       onDone && onDone(true);
+     };
+     if (navigator.geolocation) {
+       navigator.geolocation.getCurrentPosition(
+         (pos) => go(`${pos.coords.latitude},${pos.coords.longitude}`),
+         () => go(null),
+         { enableHighAccuracy: true, timeout: 5000 }
+       );
+     } else {
+       go(null);
+     }
+   }
+   
+   // ------------------------------------------------------------
+   // ROLE / PERMISSION HELPERS
+   // ------------------------------------------------------------
+   // Posting worker requirements is a business-side action. A pure
+   // 'worker' account can't post; 'business' and 'both' can; admins can
+   // always do everything a normal ('both') account can, in addition to
+   // moderation.
+   function canPostAds(user) {
+     if (!user) return false;
+     if (user.role === 'admin') return true;
+     return user.userType === 'business' || user.userType === 'both';
+   }
+   
+   
    const EMPTY_FILTERS = {
      search: '', category: '', businessType: '', radius: 'all',
-     minSalary: '', experience: '', education: '', skills: '', sortBy: ''
+     minSalary: '', experience: '', education: '', skills: '', sortBy: '', urgentOnly: false
    };
    
    function filterAndSortAds(ads, filters, userCoords) {
@@ -168,6 +369,7 @@
      if (filters.experience) list = list.filter((a) => (a.experience || '').toLowerCase().includes(filters.experience.toLowerCase()));
      if (filters.education) list = list.filter((a) => (a.education || '').toLowerCase().includes(filters.education.toLowerCase()));
      if (filters.skills) list = list.filter((a) => (a.skills || '').toLowerCase().includes(filters.skills.toLowerCase()));
+     if (filters.urgentOnly) list = list.filter((a) => a.urgent);
    
      const sortBy = filters.sortBy || (userCoords ? 'distance' : 'newest');
      list.sort((a, b) => {
@@ -179,6 +381,43 @@
        }
        if (sortBy === 'salary') return parseSalaryNumber(b.salary) - parseSalaryNumber(a.salary);
        return new Date(b.postedAt) - new Date(a.postedAt);
+     });
+     return list;
+   }
+   
+   // Worker-profile equivalent of filterAndSortAds — mirrors the same
+   // radius/sort behaviour so "Workers near you" actually works once a
+   // worker has saved a location on their profile.
+   const WORKER_EMPTY_FILTERS = {
+     search: '', category: '', availableOnly: false, radius: 'all', sortBy: ''
+   };
+   
+   function filterAndSortWorkers(workers, filters, userCoords) {
+     let list = withDistances(workers, userCoords);
+   
+     if (filters.radius && filters.radius !== 'all' && userCoords) {
+       list = list.filter((w) => w.distanceKm == null || w.distanceKm <= Number(filters.radius));
+     }
+     if (filters.search) {
+       const q = filters.search.toLowerCase();
+       list = list.filter((w) => `${w.name} ${w.skillCategories} ${w.bio}`.toLowerCase().includes(q));
+     }
+     if (filters.category) {
+       const q = filters.category.toLowerCase();
+       list = list.filter((w) => (w.skillCategories || '').toLowerCase().includes(q));
+     }
+     if (filters.availableOnly) list = list.filter((w) => w.availableNow);
+   
+     const sortBy = filters.sortBy || (userCoords ? 'distance' : 'rating');
+     list.sort((a, b) => {
+       if (sortBy === 'distance') {
+         if (a.distanceKm == null && b.distanceKm == null) return (Number(b.avgRating) || 0) - (Number(a.avgRating) || 0);
+         if (a.distanceKm == null) return 1;
+         if (b.distanceKm == null) return -1;
+         return a.distanceKm - b.distanceKm;
+       }
+       if (sortBy === 'newest') return (b.ratingCount || 0) - (a.ratingCount || 0);
+       return (Number(b.avgRating) || 0) - (Number(a.avgRating) || 0);
      });
      return list;
    }
@@ -246,7 +485,7 @@
      );
    }
    
-   function AnimatedCard({ children, className = '', delay = 0 }) {
+   function AnimatedCard({ children, className = '', delay = 0, onClick }) {
      const ref = useRef(null);
      const isVisible = useIntersectionObserver(ref);
    
@@ -255,6 +494,7 @@
          ref={ref}
          className={`animated-card ${isVisible ? 'visible' : ''} ${className}`}
          style={{ transitionDelay: `${delay}ms` }}
+         onClick={onClick}
        >
          {children}
        </div>
@@ -300,6 +540,34 @@
      return <span className={`badge badge-${status}`}>{labels[status] || status}</span>;
    }
    
+   function VerifiedBadge({ small }) {
+     const t = useT();
+     return (
+       <span className="badge badge-admin" title={t('verified')} style={{ fontSize: small ? 11 : 12 }}>
+         ✔ {t('verified')}
+       </span>
+     );
+   }
+   
+   function SuspendedBadge({ small }) {
+     return (
+       <span className="badge badge-taken_down" title="Suspended by admin" style={{ fontSize: small ? 11 : 12 }}>
+         ⛔ Suspended
+       </span>
+     );
+   }
+   
+   function StarRating({ value, count, size }) {
+     const v = Math.round(Number(value) || 0);
+     const stars = [1, 2, 3, 4, 5].map((i) => (i <= v ? '★' : '☆'));
+     return (
+       <span className="mono" style={{ fontSize: size || 14, color: '#d4a017' }}>
+         {stars.join('')}
+         {typeof count === 'number' && <span style={{ color: 'var(--text-mute)', marginLeft: 4 }}>({count})</span>}
+       </span>
+     );
+   }
+   
    function Toast({ toast }) {
      if (!toast) return null;
      return <div className={`toast ${toast.type}`}>{toast.message}</div>;
@@ -320,7 +588,7 @@
            {geo.status === 'requesting' && 'Finding your location…'}
            {geo.status === 'unsupported' && "Your browser doesn't support location — showing all listings instead."}
            {(geo.status === 'idle' || geo.status === 'denied') &&
-             'Turn on location to see jobs sorted by distance from you.'}
+             'Turn on location to see results sorted by distance from you.'}
          </div>
          {(geo.status === 'idle' || geo.status === 'denied') && (
            <button className="btn btn-primary btn-sm" onClick={geo.request}>📍 Use my location</button>
@@ -335,6 +603,72 @@
          <option value="all">Any distance</option>
          {RADIUS_OPTIONS.map((r) => <option key={r} value={r}>Within {r} km</option>)}
        </select>
+     );
+   }
+   
+   // ------------------------------------------------------------
+   // FILTER / MENU DRAWER — reusable hamburger slide-in panel.
+   // Used by Browse Jobs ("☰ Filters"), Find Workers ("☰ Filters"),
+   // and My Dashboard ("☰ Menu").
+   // ------------------------------------------------------------
+   function FilterDrawer({ open, onClose, title, children, side = 'left' }) {
+     useEffect(() => {
+       if (!open) return;
+       const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+       window.addEventListener('keydown', onKey);
+       const prevOverflow = document.body.style.overflow;
+       document.body.style.overflow = 'hidden';
+       return () => {
+         window.removeEventListener('keydown', onKey);
+         document.body.style.overflow = prevOverflow;
+       };
+     }, [open, onClose]);
+   
+     return (
+       <>
+         <div
+           className={`filter-drawer-overlay ${open ? 'open' : ''}`}
+           onClick={onClose}
+           aria-hidden={!open}
+         />
+         <div
+           className={`filter-drawer ${side === 'right' ? 'filter-drawer-right' : ''} ${open ? 'open' : ''}`}
+           role="dialog"
+           aria-modal="true"
+           aria-label={title}
+         >
+           <div className="filter-drawer-head">
+             <h3>{title}</h3>
+             <button className="modal-close" onClick={onClose} aria-label="Close">✕</button>
+           </div>
+           <div className="filter-drawer-body">
+             {children}
+           </div>
+         </div>
+       </>
+     );
+   }
+   
+   // Circular avatar used for worker profile photos. Falls back to a
+   // generic person icon when no photo has been uploaded.
+   function PersonAvatar({ src, size = 64 }) {
+     const baseStyle = {
+       width: size, height: size, minWidth: size, borderRadius: '50%',
+       overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
+       background: '#e8e8e8', border: '2px solid #fff', boxShadow: '0 0 0 1px #ddd',
+       flexShrink: 0
+     };
+     if (src) {
+       return (
+         <div style={baseStyle}>
+           <img src={src} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+         </div>
+       );
+     }
+     return (
+       <div style={{ ...baseStyle, fontSize: size * 0.5, color: '#9a9a9a' }}>
+         👤
+       </div>
      );
    }
    
@@ -455,12 +789,96 @@
      );
    }
    
+   // ------------------------------------------------------------
+   // REVIEWS (shared between businesses and workers)
+   // ------------------------------------------------------------
+   function ReviewsList({ toUserId }) {
+     const [reviews, setReviews] = useState(null);
+     const [error, setError] = useState(null);
+   
+     useEffect(() => {
+       if (!toUserId) return;
+       setReviews(null); setError(null);
+       apiCall('getUserReviews', { toUserId }).then((d) => setReviews(d.reviews)).catch((e) => setError(e.message));
+     }, [toUserId]);
+   
+     if (!toUserId) return null;
+     if (reviews === null && !error) return <p style={{ color: 'var(--text-mute)', fontSize: 14 }}>Loading reviews…</p>;
+     if (error) return null;
+     if (reviews.length === 0) return <p style={{ color: 'var(--text-mute)', fontSize: 14 }}>No reviews yet.</p>;
+   
+     return (
+       <div className="review-list">
+         {reviews.map((r) => (
+           <div key={r.reviewId} className="review-item" style={{ borderBottom: '1px solid var(--border, #eee)', padding: '10px 0' }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+               <strong>{r.fromUserName || 'Anonymous'}</strong>
+               <StarRating value={r.rating} />
+             </div>
+             {r.comment && <p style={{ margin: '4px 0 0', fontSize: 14 }}>{r.comment}</p>}
+             <span className="mono" style={{ fontSize: 11, color: 'var(--text-mute)' }}>{new Date(r.createdAt).toLocaleDateString()}</span>
+           </div>
+         ))}
+       </div>
+     );
+   }
+   
+   function ReviewFormModal({ toUserId, toRole, adId, onClose, onSubmitted }) {
+     const { user } = useAuth();
+     const t = useT();
+     const [rating, setRating] = useState(5);
+     const [comment, setComment] = useState('');
+     const [submitting, setSubmitting] = useState(false);
+     const [error, setError] = useState(null);
+   
+     const submit = async () => {
+       setSubmitting(true); setError(null);
+       try {
+         await apiCall('submitReview', {
+           fromUserId: user.userId, fromUserName: user.name,
+           toUserId, toRole, adId: adId || '', rating, comment
+         });
+         onSubmitted();
+       } catch (err) { setError(err.message); } finally { setSubmitting(false); }
+     };
+   
+     return (
+       <div className="modal-overlay" onClick={onClose}>
+         <div className="modal" onClick={(e) => e.stopPropagation()}>
+           <div className="modal-head">
+             <h2>{t('writeReview')}</h2>
+             <button className="modal-close" onClick={onClose}>✕</button>
+           </div>
+           <div className="field">
+             <label>Rating</label>
+             <div style={{ display: 'flex', gap: 6, fontSize: 26, cursor: 'pointer' }}>
+               {[1, 2, 3, 4, 5].map((i) => (
+                 <span key={i} onClick={() => setRating(i)} style={{ color: i <= rating ? '#d4a017' : '#ccc' }}>★</span>
+               ))}
+             </div>
+           </div>
+           <div className="field">
+             <label>Comment (optional)</label>
+             <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Share your experience..." />
+           </div>
+           {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
+           <button className="btn btn-primary btn-block" disabled={submitting} onClick={submit}>
+             {submitting ? 'Submitting...' : 'Submit review'}
+           </button>
+         </div>
+       </div>
+     );
+   }
+   
    // ==============================================================
    // APP ROOT
    // ==============================================================
    function App() {
      const [user, setUser] = useState(() => {
        try { return JSON.parse(localStorage.getItem('kb_user')) || null; } catch (e) { return null; }
+     });
+     const [lang, setLang] = useState(() => {
+       try { return localStorage.getItem('kb_lang') || 'en'; } catch (e) { return 'en'; }
      });
      const [route, setRoute] = useState({ page: 'home', params: {} });
      const [toast, setToast] = useState(null);
@@ -487,22 +905,57 @@
        localStorage.removeItem('kb_user');
        navigate('home');
      };
+     const updateUserLocal = (patch) => {
+       setUser((u) => {
+         const next = { ...u, ...patch };
+         localStorage.setItem('kb_user', JSON.stringify(next));
+         return next;
+       });
+     };
    
-     const authValue = { user, login, logout };
+     const changeLang = (code) => {
+       setLang(code);
+       try { localStorage.setItem('kb_lang', code); } catch (e) {}
+     };
+   
+     const authValue = { user, login, logout, updateUserLocal };
+     const langValue = { lang, setLang: changeLang };
    
      return (
        <AuthContext.Provider value={authValue}>
-         <GeoContext.Provider value={geo}>
-           <ToastContext.Provider value={showToast}>
-             <div className="app-shell">
-               <Navbar route={route} navigate={navigate} />
-               <MainRouter route={route} navigate={navigate} />
-               <Footer navigate={navigate} />
-               <Toast toast={toast} />
-             </div>
-           </ToastContext.Provider>
-         </GeoContext.Provider>
+         <LanguageContext.Provider value={langValue}>
+           <GeoContext.Provider value={geo}>
+             <ToastContext.Provider value={showToast}>
+               <div className="app-shell">
+                 <Navbar route={route} navigate={navigate} />
+                 <MainRouter route={route} navigate={navigate} />
+                 <Footer navigate={navigate} />
+                 <Toast toast={toast} />
+               </div>
+             </ToastContext.Provider>
+           </GeoContext.Provider>
+         </LanguageContext.Provider>
        </AuthContext.Provider>
+     );
+   }
+   
+   // Shown when a logged-in worker-only account tries to reach a
+   // business-only route (post/edit) directly.
+   function PostNotAllowedPage({ navigate }) {
+     return (
+       <div className="container" style={{ maxWidth: 640, marginTop: 40 }}>
+         <div className="card">
+           <h2>Only business accounts can post requirements</h2>
+           <p style={{ color: 'var(--text-mute)' }}>
+             Your account is set up as a Job Seeker (Worker). To post worker requirements,
+             switch your profile type to "Business / Employer" or "Both" from My Profile.
+           </p>
+           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+             <button className="btn btn-primary" onClick={() => navigate('dashboard')}>Go to My Profile</button>
+             <button className="btn btn-outline" onClick={() => navigate('browse')}>Browse jobs instead</button>
+           </div>
+         </div>
+       </div>
      );
    }
    
@@ -512,17 +965,117 @@
        case 'home': return <HomePage navigate={navigate} />;
        case 'browse': return <AdvertisementsPage navigate={navigate} initialFilters={route.params.filters} />;
        case 'details': return <AdDetailsPage adId={route.params.adId} navigate={navigate} />;
-       case 'post': return user ? <AdFormPage navigate={navigate} mode="create" /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="post" />;
-       case 'edit': return user ? <AdFormPage navigate={navigate} mode="edit" adId={route.params.adId} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="dashboard" />;
+       case 'post':
+         if (!user) return <LoginPage navigate={navigate} initialMode="login" redirectTo="post" />;
+         if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
+         return <AdFormPage navigate={navigate} mode="create" />;
+       case 'edit':
+         if (!user) return <LoginPage navigate={navigate} initialMode="login" redirectTo="dashboard" />;
+         if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
+         return <AdFormPage navigate={navigate} mode="edit" adId={route.params.adId} />;
        case 'dashboard': return user ? <UserDashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="dashboard" />;
        case 'admin': return (user && user.role === 'admin') ? <AdminDashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="admin" />;
+       case 'workers': return <WorkersBrowsePage navigate={navigate} />;
+       case 'worker-details': return <WorkerProfileViewPage userId={route.params.userId} navigate={navigate} />;
        case 'login': return <LoginPage navigate={navigate} initialMode="login" redirectTo={route.params.redirectTo} />;
        case 'register': return <LoginPage navigate={navigate} initialMode="register" redirectTo={route.params.redirectTo} />;
        default: return <HomePage navigate={navigate} />;
      }
    }
    
+   // ------------------------------------------------------------
+   // FOOTER MODALS — Privacy / Terms / Cookies / Contact Developer
+   // ------------------------------------------------------------
+   const LEGAL_CONTENT = {
+     privacy: {
+       title: 'Privacy Policy',
+       body: [
+         'Rojgar AREA collects only the information you provide when you create an account, post a requirement, or build a worker profile — your name, contact details, business or worker information, and any location you choose to share.',
+         'We use this information solely to connect job seekers with local businesses: to display your listing or profile to other users, to enable WhatsApp and phone contact, and to show relevant nearby results.',
+         'We do not sell your personal data. Photos and documents you upload (workplace photos, profile photos, resumes) are stored with our image hosting provider and are only shown where you choose to display them.',
+         'You can update or remove your profile information, pause or delete your advertisements, and control your location sharing at any time from your dashboard.'
+       ]
+     },
+     terms: {
+       title: 'Terms of Service',
+       body: [
+         'Rojgar AREA is a platform that lets local businesses post worker requirements and lets job seekers browse and apply to them directly. We are not a party to any employment agreement made between a business and a worker.',
+         'Users agree to post accurate information. Misleading, fraudulent, or discriminatory listings may be reported, reviewed, and taken down by our admin team.',
+         'Contact details shared on the platform (phone numbers, WhatsApp) are provided by users at their own discretion for the purpose of being contacted about job opportunities.',
+         'We reserve the right to suspend or remove accounts and listings that violate these terms or misuse the platform.'
+       ]
+     },
+     cookies: {
+       title: 'Cookie Policy',
+       body: [
+         'Rojgar AREA uses local browser storage to keep you logged in and to remember your language preference between visits.',
+         'We do not use third-party advertising cookies or trackers. Map tiles are loaded from OpenStreetMap and images from our hosting provider, which may set their own minimal technical cookies necessary to serve that content.',
+         'You can clear your browser storage at any time to remove this information; you will simply need to log in again.'
+       ]
+     }
+   };
+   
+   function LegalModal({ contentKey, onClose }) {
+     const content = LEGAL_CONTENT[contentKey];
+     if (!content) return null;
+     return (
+       <div className="modal-overlay" onClick={onClose}>
+         <div className="modal" onClick={(e) => e.stopPropagation()}>
+           <div className="modal-head">
+             <h2>{content.title}</h2>
+             <button className="modal-close" onClick={onClose}>✕</button>
+           </div>
+           {content.body.map((p, i) => (
+             <p key={i} style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 10 }}>{p}</p>
+           ))}
+         </div>
+       </div>
+     );
+   }
+   
+   function ContactDeveloperModal({ onClose }) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
+          <div className="modal-head">
+            <h2 style={{ color: '#1B1E19' }}>Contact Developer</h2>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+          <img
+            src="https://i.postimg.cc/cH2C6rgk/611276591-17933684004156896-6444722502286434287-n-(1).jpg"
+            alt="Shree Shyam IT Solutions"
+            style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }}
+          />
+          <h3 style={{ marginBottom: 4, color: '#1B1E19' }}>Shree Shyam IT Solutions</h3>
+          <p style={{ color: '#726C59', fontSize: 14, marginBottom: 18 }}>
+            This platform was built and is maintained by Shree Shyam IT Solutions.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <a
+              href="mailto:itsolutionsshreeshyam@gmail.com"
+              className="btn btn-outline btn-block"
+              style={{ textDecoration: 'none', color: '#1B1E19' }}
+            >
+              ✉️ itsolutionsshreeshyam@gmail.com
+            </a>
+            <a
+              href="https://shree-shyam-it-solutions.vercel.app/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary btn-block"
+              style={{ textDecoration: 'none' }}
+            >
+              🌐 Visit website
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+   
    function Footer({ navigate }) {
+     const t = useT();
+     const [modal, setModal] = useState(null); // 'privacy' | 'terms' | 'cookies' | 'contact' | null
      const handleNav = (path, params) => (e) => {
        e.preventDefault();
        navigate(path, params || {});
@@ -538,29 +1091,35 @@
              </div>
              <div className="footer-col">
                <h4>Quick Links</h4>
-               <button className="footer-link" onClick={handleNav('browse')}>Browse Jobs</button>
-               <button className="footer-link" onClick={handleNav('post')}>Post a Job</button>
-               <button className="footer-link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>About Us</button>
-               <button className="footer-link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Contact</button>
+               <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
+               <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
+               <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
+               <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
              </div>
              <div className="footer-col">
                <h4>Popular Searches</h4>
-               <button className="footer-link" onClick={handleNav('browse', { filters: { ...EMPTY_FILTERS, radius: HOME_DEFAULT_RADIUS } })}>Jobs Near Me</button>
-               <button className="footer-link" onClick={handleNav('browse', { filters: { ...EMPTY_FILTERS, search: 'part time' } })}>Part Time Jobs</button>
-               <button className="footer-link" onClick={handleNav('browse', { filters: { ...EMPTY_FILTERS, search: 'work from home' } })}>Work From Home</button>
-               <button className="footer-link" onClick={handleNav('browse', { filters: { ...EMPTY_FILTERS, search: 'fresher' } })}>Fresher Jobs</button>
+               <button className="footer-link" onClick={handleNav('browse', )}>Jobs Near Me</button>
+               <button className="footer-link" onClick={handleNav('browse',  )}>Hiring Today</button>
+               <button className="footer-link" onClick={handleNav('browse', )}>Part Time Jobs</button>
+               <button className="footer-link" onClick={handleNav('browse', )}>Fresher Jobs</button>
              </div>
              <div className="footer-col">
                <h4>Legal</h4>
-               <button className="footer-link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Privacy Policy</button>
-               <button className="footer-link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Terms of Service</button>
-               <button className="footer-link" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>Cookie Policy</button>
+               <button className="footer-link" onClick={() => setModal('privacy')}>Privacy Policy</button>
+               <button className="footer-link" onClick={() => setModal('terms')}>Terms of Service</button>
+               <button className="footer-link" onClick={() => setModal('cookies')}>Cookie Policy</button>
+               <button className="footer-link" onClick={() => setModal('contact')}>Contact Developer</button>
              </div>
            </div>
            <div className="footer-bottom">
              <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
            </div>
          </div>
+   
+         {(modal === 'privacy' || modal === 'terms' || modal === 'cookies') && (
+           <LegalModal contentKey={modal} onClose={() => setModal(null)} />
+         )}
+         {modal === 'contact' && <ContactDeveloperModal onClose={() => setModal(null)} />}
        </div>
      );
    }
@@ -568,64 +1127,95 @@
    // ==============================================================
    // NAVBAR
    // ==============================================================
-   function Navbar({ route, navigate }) {
-     const { user, logout } = useAuth();
-     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-     const [scrolled, setScrolled] = useState(false);
-   
-     useEffect(() => {
-       const handleScroll = () => {
-         setScrolled(window.scrollY > 20);
-       };
-       window.addEventListener('scroll', handleScroll);
-       return () => window.removeEventListener('scroll', handleScroll);
-     }, []);
-   
+   function LanguageSwitcher() {
+     const { lang, setLang } = useLanguage();
      return (
-       <div className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
-         <div className="container navbar-inner">
-         <div className="brand" onClick={() => { navigate('home'); setMobileMenuOpen(false); }}>
-  <img 
-    src="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png" 
-    alt="Rojgar AREA Logo" 
-    className="brand-logo"
-    style={{ height: '40px', width: 'auto' }}
-  />
-  <div className="brand-text">Rojgar<span>AREA</span></div>
-</div>
-           <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
-             {mobileMenuOpen ? '✕' : '☰'}
-           </button>
-           <div className={`nav-links ${mobileMenuOpen ? 'open' : ''}`}>
-             <button className={`nav-link ${route.page === 'home' ? 'active' : ''}`} onClick={() => { navigate('home'); setMobileMenuOpen(false); }}>Home</button>
-             <button className={`nav-link ${route.page === 'browse' ? 'active' : ''}`} onClick={() => { navigate('browse'); setMobileMenuOpen(false); }}>Browse Jobs</button>
-             <button className={`nav-link ${route.page === 'post' ? 'active' : ''}`} onClick={() => { navigate('post'); setMobileMenuOpen(false); }}>Post a Requirement</button>
-             {user && <button className={`nav-link ${route.page === 'dashboard' ? 'active' : ''}`} onClick={() => { navigate('dashboard'); setMobileMenuOpen(false); }}>My Dashboard</button>}
-             {user && user.role === 'admin' && <button className={`nav-link ${route.page === 'admin' ? 'active' : ''}`} onClick={() => { navigate('admin'); setMobileMenuOpen(false); }}>Admin</button>}
-           </div>
-           <div className={`nav-user ${mobileMenuOpen ? 'open' : ''}`}>
-             {user ? (
-               <>
-                 <div className="nav-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
-                 <button className="btn-ghost-light" onClick={logout}>Log out</button>
-               </>
-             ) : (
-               <>
-                 <button className="btn-ghost-light" onClick={() => { navigate('login'); setMobileMenuOpen(false); }}>Log in</button>
-                 <button className="btn btn-primary btn-sm" onClick={() => { navigate('register'); setMobileMenuOpen(false); }}>Sign up</button>
-               </>
-             )}
-           </div>
-         </div>
-       </div>
+       <select
+         className="lang-switcher"
+         value={lang}
+         onChange={(e) => setLang(e.target.value)}
+         style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', background: '#fff', fontSize: 13 }}
+       >
+         {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+       </select>
      );
    }
+   
+   function Navbar({ route, navigate }) {
+    const { user, logout } = useAuth();
+    const t = useT();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [scrolled, setScrolled] = useState(false);
+  
+    useEffect(() => {
+      const handleScroll = () => {
+        setScrolled(window.scrollY > 20);
+      };
+      window.addEventListener('scroll', handleScroll);
+      return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+  
+    const showPostLink = !user || canPostAds(user);
+    const closeMenu = () => setMobileMenuOpen(false);
+  
+    return (
+      <div className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
+        <div className="container navbar-inner">
+          <div className="brand" onClick={() => { navigate('home'); closeMenu(); }}>
+            <img
+              src="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png"
+              alt="Rojgar AREA Logo"
+              className="brand-logo"
+              style={{ height: '40px', width: 'auto' }}
+            />
+            <div className="brand-text">Rojgar<span>AREA</span></div>
+          </div>
+  
+          <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+  
+          {/* Single wrapper — on desktop it's invisible to layout (display:contents),
+              on mobile it becomes the one dropdown panel, so nav-links always
+              render above nav-user in the DOM and on screen. */}
+          <div className={`nav-menu-wrapper ${mobileMenuOpen ? 'open' : ''}`}>
+            <div className="nav-links">
+              <button className={`nav-link ${route.page === 'home' ? 'active' : ''}`} onClick={() => { navigate('home'); closeMenu(); }}>{t('home')}</button>
+              <button className={`nav-link ${route.page === 'browse' ? 'active' : ''}`} onClick={() => { navigate('browse'); closeMenu(); }}>{t('browseJobs')}</button>
+              <button className={`nav-link ${route.page === 'workers' ? 'active' : ''}`} onClick={() => { navigate('workers'); closeMenu(); }}>{t('findWorkers')}</button>
+              {showPostLink && (
+                <button className={`nav-link ${route.page === 'post' ? 'active' : ''}`} onClick={() => { navigate('post'); closeMenu(); }}>{t('postRequirement')}</button>
+              )}
+              {user && <button className={`nav-link ${route.page === 'dashboard' ? 'active' : ''}`} onClick={() => { navigate('dashboard'); closeMenu(); }}>{t('myDashboard')}</button>}
+              {user && user.role === 'admin' && <button className={`nav-link ${route.page === 'admin' ? 'active' : ''}`} onClick={() => { navigate('admin'); closeMenu(); }}>{t('admin')}</button>}
+            </div>
+  
+            <div className="nav-user">
+              <LanguageSwitcher />
+              {user ? (
+                <>
+                  <div className="nav-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
+                  <button className="btn-ghost-light" onClick={logout}>{t('logout')}</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn-ghost-light" onClick={() => { navigate('login'); closeMenu(); }}>{t('login')}</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => { navigate('register'); closeMenu(); }}>{t('signup')}</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
    
    // ==============================================================
    // HOME PAGE — Enhanced with animations and images
    // ==============================================================
    function HomePage({ navigate }) {
      const geo = useGeo();
+     const t = useT();
      const [allAds, setAllAds] = useState(null);
      const [error, setError] = useState(null);
      const [search, setSearch] = useState('');
@@ -658,6 +1248,11 @@
          : EMPTY_FILTERS;
        return filterAndSortAds(allAds, filters, geo.coords).slice(0, HOME_MAX_RESULTS);
      }, [allAds, geo.status, geo.coords]);
+   
+     const urgentAds = useMemo(() => {
+       if (!allAds) return [];
+       return filterAndSortAds(allAds, { ...EMPTY_FILTERS, urgentOnly: true }, geo.coords).slice(0, 8);
+     }, [allAds, geo.coords]);
    
      const activeCount = useMemo(
        () => (allAds || []).filter((a) => a.status === 'active').length,
@@ -722,8 +1317,8 @@
            <div className="hero-particles"></div>
            <div className="container">
              <div className="hero-badge animate-float">🇮🇳 India's Local Job Platform</div>
-             <h1 className="animate-slide-up">Find <em>jobs near you</em> — posted directly by local businesses</h1>
-             <p className="animate-slide-up-delay">Discover worker requirements from factories, shops, restaurants, and workshops in your area. No middlemen, direct connection.</p>
+             <h1 className="animate-slide-up">{t('heroTitle')}</h1>
+             <p className="animate-slide-up-delay">{t('heroSubtitle')}</p>
              
              <form className="hero-search animate-slide-up-delay-2" onSubmit={runSearch}>
                <div className="hero-search-group">
@@ -731,7 +1326,7 @@
                    <span className="hero-search-icon">🔍</span>
                    <input
                      type="text"
-                     placeholder="Search job title, skill, or business..."
+                     placeholder={t('searchPlaceholder')}
                      value={search}
                      onChange={(e) => setSearch(e.target.value)}
                    />
@@ -740,18 +1335,18 @@
                    <span className="hero-search-icon">📍</span>
                    <input
                      type="text"
-                     placeholder="Enter your location"
+                     placeholder={t('locationPlaceholder')}
                      value={locationSearch}
                      onChange={(e) => setLocationSearch(e.target.value)}
                    />
                  </div>
-                 <button type="submit" className="btn btn-primary btn-lg">Search Jobs</button>
+                 <button type="submit" className="btn btn-primary btn-lg">{t('searchJobs')}</button>
                </div>
              </form>
    
              <div className="hero-actions animate-slide-up-delay-3">
                <button className="btn btn-outline-light" onClick={runNearbySearch}>
-                 📍 Find Jobs Near Me
+                 {t('findJobsNearMe')}
                </button>
                <span className="hero-stats">
                  <strong className="counter-animate">{allAds ? activeCount : '—'}</strong> active requirements · <strong>{allAds?.length || 0}</strong> total listings
@@ -760,11 +1355,29 @@
            </div>
          </div>
    
+         {/* URGENT / HIRING TODAY SECTION */}
+         {urgentAds.length > 0 && (
+           <div className="container" style={{ marginTop: 30 }}>
+             <div className="section-head">
+               <h2>{t('urgentHiring')}<span className="count-pill">{urgentAds.length}</span></h2>
+               <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, urgentOnly: true } })}>{t('viewAll')}</button>
+             </div>
+             <div className="grid">
+               {urgentAds.map((ad, i) => (
+                 <AnimatedCard key={ad.adId} delay={i * 50}>
+                   <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+                 </AnimatedCard>
+               ))}
+             </div>
+           </div>
+         )}
+   
          {/* JOB CATEGORIES SECTION with images */}
          <div className="categories-section">
            <div className="container">
              <AnimatedSection className="section-head text-center">
-               <h2>Popular Job Categories</h2>
+               <h2>{t('popularCategories')}</h2>
+
                <p>Find jobs in your preferred category from verified local businesses</p>
              </AnimatedSection>
              {allAds === null && !error && (
@@ -812,7 +1425,7 @@
                    <div className="pack-card-icon">💼</div>
                    <h3>Full Time Jobs</h3>
                    <p>Stable employment with fixed working hours and monthly salary.</p>
-                   <button className="btn btn-primary btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, search: 'full time' } })}>
+                   <button className="btn btn-primary btn-sm" onClick={() => navigate('browse')}>
                      View Jobs →
                    </button>
                  </div>
@@ -823,7 +1436,7 @@
                    <div className="pack-card-icon">⏱️</div>
                    <h3>Part Time Jobs</h3>
                    <p>Flexible work opportunities for students and homemakers.</p>
-                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, search: 'part time' } })}>
+                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse',)}>
                      View Jobs →
                    </button>
                  </div>
@@ -834,7 +1447,7 @@
                    <div className="pack-card-icon">🧑‍💻</div>
                    <h3>Freelance & Contract</h3>
                    <p>Project-based work opportunities with flexible schedules.</p>
-                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, search: 'freelance' } })}>
+                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse',)}>
                      View Jobs →
                    </button>
                  </div>
@@ -847,7 +1460,7 @@
          <div className="how-it-works">
            <div className="container">
              <AnimatedSection className="section-head text-center">
-               <h2>How It Works</h2>
+               <h2>{t('howItWorks')}</h2>
                <p>Three simple steps to find your next job opportunity</p>
              </AnimatedSection>
              <div className="steps-grid">
@@ -873,7 +1486,7 @@
                {nearby && <span className="count-pill">{nearby.length}</span>}
              </h2>
              <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', geo.status === 'granted' ? { filters: { ...EMPTY_FILTERS, radius: HOME_DEFAULT_RADIUS } } : undefined)}>
-               View all →
+               {t('viewAll')}
              </button>
            </div>
    
@@ -894,48 +1507,7 @@
    
            {/* SEO CONTENT */}
            <div className="seo-content">
-             <h2>Find Jobs Near You in India</h2>
-             <p>
-               Rojgar AREA connects job seekers with local employment opportunities across India. 
-               Whether you're looking for <strong>jobs near me</strong>, <strong>rojgar near me</strong>, 
-               or <strong>Rojgar ki vacancy</strong> in your city, our platform makes it easy to find 
-               work opportunities from verified local businesses.
-             </p>
-             <div className="seo-grid">
-               <div className="seo-col">
-                 <h3>Popular Job Categories</h3>
-                 <ul>
-                   <li>Skilled Labour Jobs</li>
-                   <li>Driver Jobs Near Me</li>
-                   <li>Electrician Jobs</li>
-                   <li>Plumber Jobs</li>
-                   <li>Machine Operator Jobs</li>
-                   <li>Security Guard Jobs</li>
-                 </ul>
-               </div>
-               <div className="seo-col">
-                 <h3>Top Cities for Jobs</h3>
-                 <ul>
-                   <li>Jobs in Ludhiana</li>
-                   <li>Jobs in Chandigarh</li>
-                   <li>Jobs in Amritsar</li>
-                   <li>Jobs in Mohali</li>
-                   <li>Jobs in Mansa</li>
-                   <li>Jobs in Punjab</li>
-                 </ul>
-               </div>
-               <div className="seo-col">
-                 <h3>Employment Types</h3>
-                 <ul>
-                   <li>Full Time Jobs Near Me</li>
-                   <li>Part Time Jobs Near Me</li>
-                   <li>Work From Home Jobs</li>
-                   <li>Fresher Jobs Near Me</li>
-                   <li>Daily Jobs Near Me</li>
-                   <li>Contract Jobs</li>
-                 </ul>
-               </div>
-             </div>
+
            </div>
          </div>
        </div>
@@ -951,10 +1523,14 @@
            {!hasImages && <div className="no-img">No photo</div>}
            {ad.images && ad.images.length > 1 && <div className="ad-card-count">{ad.images.length} photos</div>}
            {ad.status !== 'active' && <div className="ad-card-badge"><StatusBadge status={ad.status} /></div>}
-           {isNew && <div className="ad-card-new">New</div>}
+           {isNew && !ad.urgent && <div className="ad-card-new">New</div>}
+           {ad.urgent && <div className="ad-card-new" style={{ background: 'var(--danger, #d9363e)' }}>🔥 Urgent</div>}
          </div>
          <div className="ad-card-body">
-           <div className="ad-card-title">{ad.jobTitle}</div>
+           <div className="ad-card-title">
+             {ad.jobTitle}
+             {ad.businessVerified && <VerifiedBadge small />}
+           </div>
            <div className="ad-card-biz">{ad.businessName} · {ad.businessType}</div>
            <div className="ad-card-meta">
              <span>📍 {ad.locationAddress || 'Location on request'}</span>
@@ -971,7 +1547,8 @@
    }
    
    // ==============================================================
-   // FILTER PANEL
+   // FILTER PANEL — content rendered inside the "Filters" drawer
+   // on the Browse Jobs page.
    // ==============================================================
    function FilterPanel({ filters, setFilters, categoryOptions, geoStatus, onRequestLocation, resultCount }) {
      const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
@@ -980,13 +1557,20 @@
      return (
        <div className="filter-sidebar">
          <div className="filter-sidebar-head">
-           <h3>Filters</h3>
+           <span style={{ fontSize: 12, color: 'var(--text-mute)', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 700 }}>Refine your search</span>
            <button className="link-btn" onClick={reset}>Reset all</button>
          </div>
    
          <div className="field">
            <label>Search</label>
            <input value={filters.search} onChange={(e) => set('search', e.target.value)} placeholder="Job title, business, skill..." />
+         </div>
+   
+         <div className="field">
+           <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+             <input type="checkbox" checked={!!filters.urgentOnly} onChange={(e) => set('urgentOnly', e.target.checked)} />
+             🔥 Hiring today only
+           </label>
          </div>
    
          <div className="field">
@@ -1057,6 +1641,7 @@
      const [allAds, setAllAds] = useState(null);
      const [error, setError] = useState(null);
      const [filters, setFilters] = useState({ ...EMPTY_FILTERS, ...(initialFilters || {}) });
+     const [filtersOpen, setFiltersOpen] = useState(false);
    
      const load = useCallback(() => {
        setAllAds(null); setError(null);
@@ -1075,51 +1660,58 @@
        <div className="container">
          <div className="section-head" style={{ marginTop: 30 }}>
            <h2>All job requirements {results && <span className="count-pill">{results.length}</span>}</h2>
+           <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
+             ☰ Filters
+           </button>
          </div>
    
          <LocationBanner compact />
    
-         <div className="browse-layout">
+         <div className="browse-results-full">
+           {allAds === null && !error && <Spinner label="Loading advertisements..." />}
+           {error && <ErrorState message={error} onRetry={load} />}
+           {results && results.length === 0 && (
+             <EmptyState icon="🗂️" title="No advertisements found" message="Try clearing some filters or widening your search radius." />
+           )}
+           {results && results.length > 0 && (
+             <div className="grid">
+               {results.map((ad, i) => (
+                 <AnimatedCard key={ad.adId} delay={i % 10 * 50}>
+                   <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+                 </AnimatedCard>
+               ))}
+             </div>
+           )}
+         </div>
+   
+         <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
            <FilterPanel
              filters={filters} setFilters={setFilters}
              categoryOptions={categoryOptions}
              geoStatus={geo.status} onRequestLocation={geo.request}
              resultCount={results ? results.length : undefined}
            />
-           <div className="browse-results">
-             {allAds === null && !error && <Spinner label="Loading advertisements..." />}
-             {error && <ErrorState message={error} onRetry={load} />}
-             {results && results.length === 0 && (
-               <EmptyState icon="🗂️" title="No advertisements found" message="Try clearing some filters or widening your search radius." />
-             )}
-             {results && results.length > 0 && (
-               <div className="grid">
-                 {results.map((ad, i) => (
-                   <AnimatedCard key={ad.adId} delay={i % 10 * 50}>
-                     <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
-                   </AnimatedCard>
-                 ))}
-               </div>
-             )}
-           </div>
-         </div>
+         </FilterDrawer>
        </div>
      );
    }
    
    // ==============================================================
-   // AD DETAILS PAGE (unchanged, but with animated sections)
+   // AD DETAILS PAGE
    // ==============================================================
    function AdDetailsPage({ adId, navigate }) {
      const { user } = useAuth();
      const geo = useGeo();
      const toast = useToast();
+     const t = useT();
      const [ad, setAd] = useState(null);
      const [error, setError] = useState(null);
      const [activeImg, setActiveImg] = useState(0);
      const [lightboxIndex, setLightboxIndex] = useState(null);
      const [saved, setSaved] = useState(false);
      const [reportOpen, setReportOpen] = useState(false);
+     const [reviewOpen, setReviewOpen] = useState(false);
+     const [reviewsKey, setReviewsKey] = useState(0);
      const [, setApplied] = useState(false);
      const [directionsLoading, setDirectionsLoading] = useState(false);
    
@@ -1146,33 +1738,8 @@
          toast('Workplace location is not available.', 'error');
          return;
        }
-   
        setDirectionsLoading(true);
-   
-       if (navigator.geolocation) {
-         navigator.geolocation.getCurrentPosition(
-           (position) => {
-             const { latitude, longitude } = position.coords;
-             const destination = `${ad.locationLat},${ad.locationLng}`;
-             const origin = `${latitude},${longitude}`;
-             const url = `https://www.google.com/maps/dir/${origin}/${destination}`;
-             window.open(url, '_blank');
-             setDirectionsLoading(false);
-           },
-           () => {
-             const destination = `${ad.locationLat},${ad.locationLng}`;
-             const url = `https://www.google.com/maps/dir//${destination}`;
-             window.open(url, '_blank');
-             setDirectionsLoading(false);
-           },
-           { enableHighAccuracy: true, timeout: 5000 }
-         );
-       } else {
-         const destination = `${ad.locationLat},${ad.locationLng}`;
-         const url = `https://www.google.com/maps/dir//${destination}`;
-         window.open(url, '_blank');
-         setDirectionsLoading(false);
-       }
+       openDirectionsToCoords(ad.locationLat, ad.locationLng, () => setDirectionsLoading(false));
      };
    
      if (error) return <div className="container"><ErrorState message={error} onRetry={load} /></div>;
@@ -1192,6 +1759,7 @@
    
      const isOwner = user && ad.postedBy === user.userId;
      const images = ad.images || [];
+     const whatsappLink = buildWhatsAppLink(ad.contactPhone, `Hi, I'm interested in the "${ad.jobTitle}" position at ${ad.businessName} that I saw on Rojgar AREA.`);
    
      return (
        <div className="container">
@@ -1227,6 +1795,7 @@
                  ? <img src={images[activeImg]} alt={ad.jobTitle} />
                  : <div className="no-img" style={{ height: '100%' }}>No photos provided</div>}
                {images.length > 0 && <div className="gallery-expand-hint">⤢ View full size</div>}
+               {ad.urgent && <div className="ad-card-new" style={{ background: 'var(--danger, #d9363e)', position: 'absolute', top: 10, left: 10 }}>🔥 Hiring Today</div>}
              </div>
              {images.length > 1 && (
                <div className="gallery-thumbs">
@@ -1257,7 +1826,7 @@
                    disabled={directionsLoading}
                    style={{ marginTop: 12 }}
                  >
-                   {directionsLoading ? 'Getting your location...' : '🗺️ Get Directions'}
+                   {directionsLoading ? 'Getting your location...' : t('getDirections')}
                  </button>
                  {geo.status === 'denied' && (
                    <p style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
@@ -1266,10 +1835,19 @@
                  )}
                </div>
              )}
+   
+             <div className="desc-block">
+               <h3>{t('reviews')} {ad.businessRatingCount > 0 && <StarRating value={ad.businessRating} count={ad.businessRatingCount} />}</h3>
+               <ReviewsList key={reviewsKey} toUserId={ad.postedBy} />
+               {user && !isOwner && (
+                 <button className="btn btn-outline btn-sm" style={{ marginTop: 10 }} onClick={() => setReviewOpen(true)}>{t('writeReview')}</button>
+               )}
+             </div>
            </div>
    
            <div className="details-panel">
              <StatusBadge status={ad.status} />
+             {ad.businessVerified && <span style={{ marginLeft: 8 }}><VerifiedBadge /></span>}
              <h1 style={{ marginTop: 10 }}>{ad.jobTitle}</h1>
              <div className="biz-name">{ad.businessName} · {ad.businessType}</div>
              {distanceKm != null && <DistanceChip km={distanceKm} />}
@@ -1281,20 +1859,46 @@
                <div className="spec-row"><span className="label">Education</span><span className="val">{ad.education || '—'}</span></div>
                <div className="spec-row"><span className="label">Experience</span><span className="val">{ad.experience || '—'}</span></div>
                <div className="spec-row"><span className="label">Working hours</span><span className="val">{ad.workingHours || '—'}</span></div>
-               <div className="spec-row"><span className="label">Contact</span><span className="val">{ad.contactPhone || 'See description'}</span></div>
+               <div className="spec-row"><span className="label">Contact</span><span className="val">{ad.contactPhone ? <a href={`tel:${ad.contactPhone}`}>{ad.contactPhone}</a> : 'See description'}</span></div>
                <div className="spec-row"><span className="label">Posted</span><span className="val">{new Date(ad.postedAt).toLocaleDateString()}</span></div>
              </div>
    
+             {ad.status === 'active' && !isOwner && (whatsappLink || ad.contactPhone) && (
+               <div className="action-row" style={{ display: 'flex', gap: 10 }}>
+                 {whatsappLink && (
+                   <a
+                     href={whatsappLink}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="btn btn-block"
+                     style={{ background: '#25D366', color: '#fff', textAlign: 'center', display: 'block', textDecoration: 'none', padding: '10px 14px', borderRadius: 8 }}
+                   >
+                     {t('applyWhatsApp')}
+                   </a>
+                 )}
+                 {ad.contactPhone && (
+                   <a
+                     href={`tel:${ad.contactPhone}`}
+                     className="btn btn-outline btn-block"
+                     style={{ textAlign: 'center', display: 'block', textDecoration: 'none', padding: '10px 14px' }}
+                   >
+                     📞 {ad.contactPhone}
+                   </a>
+                 )}
+               </div>
+             )}
+   
+             {/* Save & Report are available to every role (worker, business, admin) — not gated by userType. */}
              {ad.status === 'active' && !isOwner && (
                <div className="action-row">
                  <button className={`btn ${saved ? 'btn-success' : 'btn-outline'} btn-block`} onClick={toggleSave}>
-                   {saved ? '✓ Saved' : '☆ Save advertisement'}
+                   {saved ? t('saved') : t('save')}
                  </button>
                </div>
              )}
              {ad.status === 'active' && !isOwner && (
                <button className="btn btn-outline btn-block" style={{ marginTop: 10, color: 'var(--danger)' }} onClick={() => user ? setReportOpen(true) : navigate('login', { redirectTo: 'home' })}>
-                 🚩 Report this advertisement
+                 {t('report')}
                </button>
              )}
            </div>
@@ -1305,6 +1909,16 @@
              adId={ad.adId}
              onClose={() => setReportOpen(false)}
              onSubmitted={() => { setReportOpen(false); toast('Report submitted. Our admin team will review it.', 'success'); }}
+           />
+         )}
+   
+         {reviewOpen && (
+           <ReviewFormModal
+             toUserId={ad.postedBy}
+             toRole="business"
+             adId={ad.adId}
+             onClose={() => setReviewOpen(false)}
+             onSubmitted={() => { setReviewOpen(false); setReviewsKey((k) => k + 1); toast('Thanks for your review!', 'success'); }}
            />
          )}
    
@@ -1367,138 +1981,196 @@
    }
    
    // ==============================================================
-   // AD FORM PAGE (unchanged)
+   // AD FORM PAGE
    // ==============================================================
    const BLANK_FORM = {
      businessName: '', businessType: BUSINESS_TYPES[0], jobTitle: '', workerCategory: WORKER_CATEGORIES[0],
      customCategory: '', numWorkers: 1, salary: '', education: '', experience: '', skills: '', workingHours: '',
-     description: '', contactPhone: '', locationLat: null, locationLng: null, locationAddress: ''
+     description: '', contactPhone: '', locationLat: null, locationLng: null, locationAddress: '', urgent: false
    };
    
-   function AdFormPage({ navigate, mode, adId }) {
-     const { user } = useAuth();
-     const toast = useToast();
-     const isEdit = mode === 'edit';
-     const [form, setForm] = useState(BLANK_FORM);
-     const [images, setImages] = useState([]);
-     const [submitting, setSubmitting] = useState(false);
-     const [error, setError] = useState(null);
-     const [loading, setLoading] = useState(isEdit);
-     const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
+   function SalaryBenchmarkHint({ category }) {
+     const t = useT();
+     const [benchmark, setBenchmark] = useState(null);
    
      useEffect(() => {
-       if (!isEdit) return;
-       apiCall('getAdById', { adId }).then((data) => {
-         const ad = data.ad;
-         if (ad.postedBy !== user.userId) { setNotFoundOrForbidden(true); setLoading(false); return; }
-         setForm({
-           businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
-           jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
-           customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
-           education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
-           workingHours: ad.workingHours || '', description: ad.description || '', contactPhone: ad.contactPhone || '',
-           locationLat: ad.locationLat, locationLng: ad.locationLng, locationAddress: ad.locationAddress || ''
-         });
-         setImages(ad.images || []);
-         setLoading(false);
-       }).catch(() => { setNotFoundOrForbidden(true); setLoading(false); });
-     }, [isEdit, adId, user.userId]);
+       if (!category || category === 'Other') { setBenchmark(null); return; }
+       let cancelled = false;
+       apiCall('getSalaryBenchmark', { category }).then((d) => {
+         if (!cancelled) setBenchmark(d);
+       }).catch(() => {});
+       return () => { cancelled = true; };
+     }, [category]);
    
-     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-   
-     const submit = async (e) => {
-       e.preventDefault();
-       if (!form.businessName || !form.jobTitle) { setError('Business name and job title are required.'); return; }
-       if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
-         setError('Please describe the worker category.'); return;
-       }
-       setSubmitting(true); setError(null);
-       try {
-         if (isEdit) {
-           await apiCall('updateAd', { ...form, images, adId, postedBy: user.userId });
-           toast('Advertisement updated.', 'success');
-           navigate('details', { adId });
-         } else {
-           await apiCall('createAd', { ...form, images, postedBy: user.userId, postedByName: user.name });
-           toast('Advertisement posted successfully!', 'success');
-           navigate('home');
-         }
-       } catch (err) { setError(err.message); } finally { setSubmitting(false); }
-     };
-   
-     if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
-     if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
-   
+     if (!benchmark || !benchmark.avgSalary) return null;
      return (
-       <div className="container form-page">
-         <h1>{isEdit ? 'Edit your requirement' : 'Post a worker requirement'}</h1>
-         <p style={{ color: 'var(--text-mute)', marginBottom: 24 }}>
-           {isEdit ? 'Update the details below — changes go live immediately.' : 'Reach local job seekers directly — free to post.'}
-         </p>
-   
-         <form className="card" onSubmit={submit}>
-           <div className="form-section-title">Business / workplace details</div>
-           <div className="form-grid">
-             <div className="field"><label>Business / workplace name *</label>
-               <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." /></div>
-             <div className="field"><label>Business type</label>
-               <select value={form.businessType} onChange={(e) => set('businessType', e.target.value)}>
-                 {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-               </select></div>
-             <div className="field full"><label>Contact phone</label>
-               <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="10-digit mobile number" /></div>
-           </div>
-   
-           <div className="form-section-title">Job details</div>
-           <div className="form-grid">
-             <div className="field"><label>Job title *</label>
-               <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="e.g. Machine Operator" /></div>
-             <div className="field"><label>Worker category</label>
-               <select value={form.workerCategory} onChange={(e) => set('workerCategory', e.target.value)}>
-                 {WORKER_CATEGORIES.map((t) => <option key={t} value={t}>{t}</option>)}
-               </select></div>
-             {form.workerCategory === 'Other' && (
-               <div className="field full custom-category-field">
-                 <label>What kind of worker are you looking for? *</label>
-                 <input value={form.customCategory} onChange={(e) => set('customCategory', e.target.value)} placeholder="Describe the worker category, e.g. Gardener, Painter, Data Entry" />
-               </div>
-             )}
-             <div className="field"><label>Number of workers needed</label>
-               <input type="number" min="1" value={form.numWorkers} onChange={(e) => set('numWorkers', e.target.value)} /></div>
-             <div className="field"><label>Salary (monthly, ₹)</label>
-               <input value={form.salary} onChange={(e) => set('salary', e.target.value)} placeholder="e.g. 12000-15000" /></div>
-             <div className="field"><label>Education requirement</label>
-               <input value={form.education} onChange={(e) => set('education', e.target.value)} placeholder="e.g. 10th pass / none" /></div>
-             <div className="field"><label>Experience required</label>
-               <input value={form.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. 1+ years / freshers ok" /></div>
-             <div className="field"><label>Working hours</label>
-               <input value={form.workingHours} onChange={(e) => set('workingHours', e.target.value)} placeholder="e.g. 9 AM - 6 PM, 6 days/week" /></div>
-             <div className="field"><label>Skills required</label>
-               <input value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="e.g. stitching, ironing" /></div>
-             <div className="field full"><label>Description</label>
-               <textarea value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Describe the role, responsibilities and any other details..." /></div>
-           </div>
-   
-           <div className="form-section-title">Workplace photos</div>
-           <ImageUploader images={images} onChange={setImages} />
-   
-           <div className="form-section-title">Workplace location</div>
-           <LocationPicker
-             lat={form.locationLat} lng={form.locationLng} address={form.locationAddress}
-             onChange={(lat, lng, address) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng, locationAddress: address }))}
-           />
-   
-           {error && <div className="error-box" style={{ marginTop: 18 }}>{error}</div>}
-           <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-             <button className="btn btn-primary btn-block" disabled={submitting}>
-               {submitting ? 'Saving...' : (isEdit ? 'Save changes' : 'Post advertisement')}
-             </button>
-             {isEdit && <button type="button" className="btn btn-outline" onClick={() => navigate('details', { adId })}>Cancel</button>}
-           </div>
-         </form>
-       </div>
+       <p style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 4 }}>
+         💡 {t('salaryBenchmark')} "{category}": ₹{benchmark.avgSalary}/month (based on {benchmark.sampleSize} listings, range ₹{benchmark.minSalary}–₹{benchmark.maxSalary})
+       </p>
      );
    }
+   
+   function AdFormPage({ navigate, mode, adId }) {
+    const { user } = useAuth();
+    const toast = useToast();
+    const t = useT();
+    const isEdit = mode === 'edit';
+    const [form, setForm] = useState(BLANK_FORM);
+    const [images, setImages] = useState([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState(null);
+    const [loading, setLoading] = useState(isEdit);
+    const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
+  
+    // Move the permission check AFTER all hooks
+    // All hooks must be called unconditionally at the top level
+  
+    useEffect(() => {
+      // Only fetch data if editing and user has permission
+      if (!isEdit || !canPostAds(user)) return;
+      
+      apiCall('getAdById', { adId }).then((data) => {
+        const ad = data.ad;
+        if (ad.postedBy !== user.userId) { 
+          setNotFoundOrForbidden(true); 
+          setLoading(false); 
+          return;
+        }
+        setForm({
+          businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
+          jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
+          customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
+          education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
+          workingHours: ad.workingHours || '', description: ad.description || '', contactPhone: ad.contactPhone || '',
+          locationLat: ad.locationLat, locationLng: ad.locationLng, locationAddress: ad.locationAddress || '',
+          urgent: !!ad.urgent
+        });
+        setImages(ad.images || []);
+        setLoading(false);
+      }).catch(() => { 
+        setNotFoundOrForbidden(true); 
+        setLoading(false); 
+      });
+    }, [isEdit, adId, user.userId, user]); // Add user to dependencies
+  
+    // Defense in depth: check permission after all hooks
+    if (!canPostAds(user)) {
+      return <PostNotAllowedPage navigate={navigate} />;
+    }
+  
+    const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  
+    const submit = async (e) => {
+      e.preventDefault();
+      if (!form.businessName || !form.jobTitle) { 
+        setError('Business name and job title are required.'); 
+        return; 
+      }
+      if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
+        setError('Please describe the worker category.'); 
+        return;
+      }
+      setSubmitting(true); 
+      setError(null);
+      try {
+        if (isEdit) {
+          await apiCall('updateAd', { ...form, images, adId, postedBy: user.userId });
+          toast('Advertisement updated.', 'success');
+          navigate('details', { adId });
+        } else {
+          await apiCall('createAd', { ...form, images, postedBy: user.userId, postedByName: user.name });
+          toast('Advertisement posted successfully!', 'success');
+          navigate('home');
+        }
+      } catch (err) { 
+        setError(err.message); 
+      } finally { 
+        setSubmitting(false); 
+      }
+    };
+  
+    if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
+    if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
+  
+    return (
+      <div className="container form-page">
+        <h1>{isEdit ? 'Edit your requirement' : t('postAJob')}</h1>
+        <p style={{ color: 'var(--text-mute)', marginBottom: 24 }}>
+          {isEdit ? 'Update the details below — changes go live immediately.' : 'Reach local job seekers directly — free to post.'}
+        </p>
+  
+        <form className="card" onSubmit={submit}>
+          <div className="form-section-title">Business / workplace details</div>
+          <div className="form-grid">
+            <div className="field"><label>Business / workplace name *</label>
+              <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." /></div>
+            <div className="field"><label>Business type</label>
+              <select value={form.businessType} onChange={(e) => set('businessType', e.target.value)}>
+                {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select></div>
+            <div className="field full"><label>Contact phone (used for WhatsApp "Apply Now")</label>
+              <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="10-digit mobile number" /></div>
+          </div>
+  
+          <div className="form-section-title">Job details</div>
+          <div className="form-grid">
+            <div className="field"><label>Job title *</label>
+              <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="e.g. Machine Operator" /></div>
+            <div className="field"><label>Worker category</label>
+              <select value={form.workerCategory} onChange={(e) => set('workerCategory', e.target.value)}>
+                {WORKER_CATEGORIES.map((t) => <option key={t} value={t}>{t}</option>)}
+              </select></div>
+            {form.workerCategory === 'Other' && (
+              <div className="field full custom-category-field">
+                <label>What kind of worker are you looking for? *</label>
+                <input value={form.customCategory} onChange={(e) => set('customCategory', e.target.value)} placeholder="Describe the worker category, e.g. Gardener, Painter, Data Entry" />
+              </div>
+            )}
+            <div className="field"><label>Number of workers needed</label>
+              <input type="number" min="1" value={form.numWorkers} onChange={(e) => set('numWorkers', e.target.value)} /></div>
+            <div className="field">
+              <label>Salary (monthly, ₹)</label>
+              <input value={form.salary} onChange={(e) => set('salary', e.target.value)} placeholder="e.g. 12000-15000" />
+              <SalaryBenchmarkHint category={categoryOf({ workerCategory: form.workerCategory, customCategory: form.customCategory })} />
+            </div>
+            <div className="field"><label>Education requirement</label>
+              <input value={form.education} onChange={(e) => set('education', e.target.value)} placeholder="e.g. 10th pass / none" /></div>
+            <div className="field"><label>Experience required</label>
+              <input value={form.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. 1+ years / freshers ok" /></div>
+            <div className="field"><label>Working hours</label>
+              <input value={form.workingHours} onChange={(e) => set('workingHours', e.target.value)} placeholder="e.g. 9 AM - 6 PM, 6 days/week" /></div>
+            <div className="field"><label>Skills required</label>
+              <input value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="e.g. stitching, ironing" /></div>
+            <div className="field full">
+              <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input type="checkbox" checked={!!form.urgent} onChange={(e) => set('urgent', e.target.checked)} />
+                🔥 Mark as urgent — hiring today / immediate joining
+              </label>
+            </div>
+            <div className="field full"><label>Description</label>
+              <textarea value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Describe the role, responsibilities and any other details..." /></div>
+          </div>
+  
+          <div className="form-section-title">Workplace photos</div>
+          <ImageUploader images={images} onChange={setImages} />
+  
+          <div className="form-section-title">Workplace location</div>
+          <LocationPicker
+            lat={form.locationLat} lng={form.locationLng} address={form.locationAddress}
+            onChange={(lat, lng, address) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng, locationAddress: address }))}
+          />
+  
+          {error && <div className="error-box" style={{ marginTop: 18 }}>{error}</div>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
+            <button className="btn btn-primary btn-block" disabled={submitting}>
+              {submitting ? 'Saving...' : (isEdit ? 'Save changes' : 'Post advertisement')}
+            </button>
+            {isEdit && <button type="button" className="btn btn-outline" onClick={() => navigate('details', { adId })}>Cancel</button>}
+          </div>
+        </form>
+      </div>
+    );
+  }
    
    // ------------------------------------------------------------
    // IMAGE UPLOADER
@@ -1558,6 +2230,48 @@
      );
    }
    
+   // Single-image uploader used for a worker's circular profile photo.
+   function ProfilePhotoUploader({ photo, onChange }) {
+     const inputRef = useRef(null);
+     const [uploading, setUploading] = useState(false);
+   
+     const handleFile = async (file) => {
+       if (!file || !file.type.startsWith('image/')) return;
+       setUploading(true);
+       try {
+         const url = await uploadToCloudinary(file);
+         onChange(url);
+       } catch (err) {
+         alert('Photo upload failed: ' + err.message);
+       } finally {
+         setUploading(false);
+       }
+     };
+   
+     return (
+       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+         <div style={{ position: 'relative' }}>
+           <PersonAvatar src={photo} size={84} />
+           {uploading && (
+             <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+               <div className="spinner" style={{ width: 20, height: 20, marginBottom: 0 }}></div>
+             </div>
+           )}
+         </div>
+         <div>
+           <button type="button" className="btn btn-outline btn-sm" onClick={() => inputRef.current.click()}>
+             {photo ? 'Change photo' : 'Upload photo'}
+           </button>
+           {photo && (
+             <button type="button" className="link-btn" style={{ marginLeft: 10 }} onClick={() => onChange('')}>Remove</button>
+           )}
+           <input ref={inputRef} type="file" accept="image/*" hidden onChange={(e) => handleFile(e.target.files[0])} />
+           <div style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 4 }}>Optional — shown as your profile picture. If skipped, a generic icon is shown instead.</div>
+         </div>
+       </div>
+     );
+   }
+   
    // ------------------------------------------------------------
    // LOCATION PICKER
    // ------------------------------------------------------------
@@ -1596,20 +2310,537 @@
              {locating ? 'Locating…' : '📍 Use current location'}
            </button>
            <span className="map-coords">
-             {coords.lat ? `Lat ${coords.lat.toFixed(5)}, Lng ${coords.lng.toFixed(5)}` : 'Click on the map or drag the pin to set the workplace location'}
+             {coords.lat ? `Lat ${coords.lat.toFixed(5)}, Lng ${coords.lng.toFixed(5)}` : 'Click on the map or drag the pin to set the location'}
            </span>
          </div>
          <div className="map-wrap">
            <MapView lat={coords.lat} lng={coords.lng} interactive markerDraggable onPick={handlePick} height="300px" />
          </div>
          <div className="field" style={{ marginTop: 12 }}>
-           <label>Address / landmark</label>
+           <label>Address / nearby landmark</label>
            <input
              value={localAddress}
              onChange={(e) => { setLocalAddress(e.target.value); onChange(coords.lat, coords.lng, e.target.value); }}
              placeholder="e.g. Near Bus Stand, Industrial Area Phase 2"
            />
          </div>
+         {!coords.lat && (
+           <p style={{ fontSize: 12, color: 'var(--danger, #d9363e)', marginTop: 8 }}>
+             ⚠️ Typing an address alone won't set your location on the map — click the map, drag the pin, or use
+             "Use current location" so distance search actually finds you.
+           </p>
+         )}
+       </div>
+     );
+   }
+   
+   // ==============================================================
+   // WORKER PROFILES — browse, view, and edit
+   // ==============================================================
+   function WorkerCard({ worker, onClick }) {
+     const t = useT();
+     const whatsappLink = buildWhatsAppLink(worker.phone, `Hi ${worker.name}, I saw your profile on Rojgar AREA and I'd like to talk about a job opportunity.`);
+     return (
+       <div className="ad-card" onClick={onClick}>
+         <div className="ad-card-body">
+           <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+             <PersonAvatar src={worker.profilePhoto} size={48} />
+             <div>
+               <div className="ad-card-title" style={{ marginBottom: 0 }}>
+                 {worker.name}
+                 {worker.verified && <VerifiedBadge small />}
+               </div>
+               <div className="ad-card-biz">{worker.skillCategories || 'General worker'}</div>
+             </div>
+           </div>
+           <div className="ad-card-meta">
+             <span>🧰 {worker.experienceYears ? `${worker.experienceYears} experience` : 'Experience not specified'}</span>
+             {worker.availableNow && <span style={{ color: 'var(--success, #1a9d5c)' }}>🟢 {t('availableNow')}</span>}
+           </div>
+           {worker.phone && (
+             <div className="ad-card-meta" style={{ marginTop: -2 }}>
+               <span>📞 {worker.phone}</span>
+             </div>
+           )}
+           {worker.locationAddress && (
+             <div className="ad-card-meta" style={{ marginTop: -2 }}>
+               <span>📍 {worker.locationAddress}</span>
+             </div>
+           )}
+           {worker.distanceKm != null && <div className="ad-card-distance"><DistanceChip km={worker.distanceKm} /></div>}
+           {worker.ratingCount > 0 && <StarRating value={worker.avgRating} count={worker.ratingCount} />}
+           {worker.bio && <p style={{ fontSize: 13, color: 'var(--text-mute)', marginTop: 6 }}>{worker.bio}</p>}
+           {whatsappLink && (
+             <a
+               href={whatsappLink}
+               target="_blank"
+               rel="noopener noreferrer"
+               onClick={(e) => e.stopPropagation()}
+               className="btn btn-sm"
+               style={{ background: '#25D366', color: '#fff', textDecoration: 'none', display: 'inline-block', marginTop: 8, padding: '6px 12px', borderRadius: 6 }}
+             >
+               {t('applyWhatsApp')}
+             </a>
+           )}
+         </div>
+       </div>
+     );
+   }
+   
+   // Content rendered inside the "Filters" drawer on the Find Workers page.
+   function WorkerFilterPanel({ filters, setFilters, geoStatus, onRequestLocation, resultCount, totalCount, withLocationCount }) {
+     const t = useT();
+     const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
+     const resetFilters = () => setFilters({ ...WORKER_EMPTY_FILTERS });
+   
+     return (
+       <div className="filter-sidebar">
+         <div className="filter-sidebar-head">
+           <span style={{ fontSize: 12, color: 'var(--text-mute)', textTransform: 'uppercase', letterSpacing: '0.4px', fontWeight: 700 }}>Refine your search</span>
+           <button className="link-btn" onClick={resetFilters}>Reset all</button>
+         </div>
+   
+         <div className="field">
+           <label>Search</label>
+           <input value={filters.search} onChange={(e) => set('search', e.target.value)} placeholder="Name, skill, bio..." />
+         </div>
+         <div className="field">
+           <label>Category</label>
+           <select value={filters.category} onChange={(e) => set('category', e.target.value)}>
+             <option value="">All categories</option>
+             {WORKER_CATEGORIES.filter((c) => c !== 'Other').map((c) => <option key={c} value={c}>{c}</option>)}
+           </select>
+         </div>
+         <div className="field">
+           <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+             <input type="checkbox" checked={filters.availableOnly} onChange={(e) => set('availableOnly', e.target.checked)} />
+             {t('availableNow')} only
+           </label>
+         </div>
+         <div className="field">
+           <label>Distance</label>
+           {geoStatus === 'granted'
+             ? <RadiusSelect value={filters.radius} onChange={(v) => set('radius', v)} />
+             : (
+               <button className="btn btn-outline btn-sm btn-block" onClick={onRequestLocation}>📍 Enable location to filter by distance</button>
+             )}
+         </div>
+         <div className="field">
+           <label>Sort by</label>
+           <select value={filters.sortBy} onChange={(e) => set('sortBy', e.target.value)}>
+             <option value="">{geoStatus === 'granted' ? 'Nearest first' : 'Top rated first'}</option>
+             {geoStatus === 'granted' && <option value="distance">Nearest first</option>}
+             <option value="rating">Top rated first</option>
+           </select>
+         </div>
+   
+         {typeof resultCount === 'number' && (
+           <div className="filter-result-count">
+             {resultCount} matching {resultCount === 1 ? 'worker' : 'workers'}
+             {withLocationCount != null && totalCount != null && withLocationCount < totalCount && (
+               <div style={{ fontWeight: 400, color: 'var(--text-mute)', marginTop: 4, fontSize: 12 }}>
+                 {totalCount - withLocationCount} of {totalCount} worker profiles haven't pinned a location on the map yet, so they won't show a distance.
+               </div>
+             )}
+           </div>
+         )}
+       </div>
+     );
+   }
+   
+   function WorkersBrowsePage({ navigate }) {
+     const t = useT();
+     const geo = useGeo();
+     const [rawWorkers, setRawWorkers] = useState(null);
+     const [error, setError] = useState(null);
+     const [filters, setFilters] = useState({ ...WORKER_EMPTY_FILTERS });
+     const [filtersOpen, setFiltersOpen] = useState(false);
+   
+     const load = useCallback(() => {
+       setRawWorkers(null); setError(null);
+       apiCall('searchWorkers', { search: filters.search, category: filters.category, availableOnly: filters.availableOnly })
+         .then((d) => setRawWorkers(d.workers))
+         .catch((e) => setError(e.message));
+     }, [filters.search, filters.category, filters.availableOnly]);
+   
+     useEffect(() => {
+       const timer = setTimeout(load, 250);
+       return () => clearTimeout(timer);
+     }, [load]);
+   
+     // Radius/sort/distance are computed client-side (mirrors filterAndSortAds)
+     // so this actually reflects the worker's saved profile location.
+     const workers = useMemo(() => {
+       if (!rawWorkers) return null;
+       return filterAndSortWorkers(rawWorkers, filters, geo.coords);
+     }, [rawWorkers, filters, geo.coords]);
+   
+     const withLocationCount = useMemo(
+       () => (rawWorkers || []).filter((w) => w.locationLat != null && w.locationLng != null).length,
+       [rawWorkers]
+     );
+   
+     return (
+       <div className="container">
+         <div className="section-head" style={{ marginTop: 30 }}>
+           <h2>{t('workersNearYou')} {workers && <span className="count-pill">{workers.length}</span>}</h2>
+           <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
+             ☰ Filters
+           </button>
+         </div>
+   
+         <LocationBanner compact />
+   
+         <div className="browse-results-full">
+           {rawWorkers === null && !error && <Spinner label="Loading workers..." />}
+           {error && <ErrorState message={error} onRetry={load} />}
+           {workers && workers.length === 0 && (
+             <EmptyState icon="🧰" title="No worker profiles found" message="Workers who complete their profile will show up here." />
+           )}
+           {workers && workers.length > 0 && (
+             <div className="grid">
+               {workers.map((w, i) => (
+                 <AnimatedCard key={w.userId} delay={i % 10 * 50}>
+                   <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} />
+                 </AnimatedCard>
+               ))}
+             </div>
+           )}
+         </div>
+   
+         <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+           <WorkerFilterPanel
+             filters={filters} setFilters={setFilters}
+             geoStatus={geo.status} onRequestLocation={geo.request}
+             resultCount={workers ? workers.length : undefined}
+             totalCount={rawWorkers ? rawWorkers.length : undefined}
+             withLocationCount={rawWorkers ? withLocationCount : undefined}
+           />
+         </FilterDrawer>
+       </div>
+     );
+   }
+   
+   function WorkerProfileViewPage({ userId, navigate }) {
+     const { user } = useAuth();
+     const geo = useGeo();
+     const toast = useToast();
+     const t = useT();
+     const [worker, setWorker] = useState(null);
+     const [error, setError] = useState(null);
+     const [reviewOpen, setReviewOpen] = useState(false);
+     const [reviewsKey, setReviewsKey] = useState(0);
+     const [lightboxIndex, setLightboxIndex] = useState(null);
+     const [directionsLoading, setDirectionsLoading] = useState(false);
+   
+     const load = useCallback(() => {
+       setWorker(null); setError(null);
+       apiCall('getWorkerProfile', { userId }).then((d) => setWorker(d.user)).catch((e) => setError(e.message));
+     }, [userId]);
+     useEffect(() => { load(); }, [load]);
+   
+     if (error) return <div className="container"><ErrorState message={error} onRetry={load} /></div>;
+     if (!worker) return <div className="container"><Spinner label="Loading profile..." /></div>;
+   
+     const isSelf = user && user.userId === worker.userId;
+     const whatsappLink = buildWhatsAppLink(worker.phone, `Hi ${worker.name}, I saw your profile on Rojgar AREA and I'd like to talk about a job opportunity.`);
+     const distanceKm = (geo.coords && worker.locationLat != null && worker.locationLng != null)
+       ? haversineDistanceKm(geo.coords.lat, geo.coords.lng, worker.locationLat, worker.locationLng)
+       : null;
+     const resumeImages = worker.resumeImages || [];
+   
+     const openDirections = () => {
+       if (worker.locationLat == null || worker.locationLng == null) {
+         toast('This worker has not pinned a location yet.', 'error');
+         return;
+       }
+       setDirectionsLoading(true);
+       openDirectionsToCoords(worker.locationLat, worker.locationLng, () => setDirectionsLoading(false));
+     };
+   
+     return (
+       <div className="container" style={{ maxWidth: 800, marginTop: 30 }}>
+         {worker.suspended && (
+           <div className="takedown-banner">
+             <div>
+               <strong>This profile was suspended by an admin</strong>
+               {worker.suspendReason ? ` Reason: ${worker.suspendReason}` : ''}
+               {isSelf ? ' Contact support if you think this was a mistake.' : ''}
+             </div>
+           </div>
+         )}
+   
+         <div className="card">
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+             <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+               <PersonAvatar src={worker.profilePhoto} size={72} />
+               <div>
+                 <h1 style={{ marginBottom: 4 }}>
+                   {worker.name} {worker.verified && <VerifiedBadge />} {worker.suspended && <SuspendedBadge />}
+                 </h1>
+                 <div className="biz-name">{worker.skillCategories || 'General worker'}</div>
+                 {worker.ratingCount > 0 && <StarRating value={worker.avgRating} count={worker.ratingCount} size={16} />}
+                 {distanceKm != null && <div style={{ marginTop: 4 }}><DistanceChip km={distanceKm} /></div>}
+               </div>
+             </div>
+             {worker.availableNow && !worker.suspended && <span className="badge badge-active">🟢 {t('availableNow')}</span>}
+           </div>
+   
+           <div className="spec-list" style={{ marginTop: 16 }}>
+             <div className="spec-row"><span className="label">Experience</span><span className="val">{worker.experienceYears || '—'}</span></div>
+             <div className="spec-row"><span className="label">Phone</span><span className="val">{worker.phone ? <a href={`tel:${worker.phone}`}>{worker.phone}</a> : '—'}</span></div>
+             {worker.publicEmail && (
+               <div className="spec-row"><span className="label">Email</span><span className="val"><a href={`mailto:${worker.publicEmail}`}>{worker.publicEmail}</a></span></div>
+             )}
+             <div className="spec-row"><span className="label">Bio</span><span className="val">{worker.bio || '—'}</span></div>
+           </div>
+   
+           {worker.locationLat != null && worker.locationLng != null && (
+             <div className="desc-block">
+               <h3>Location</h3>
+               <p>{worker.locationAddress || 'Pinned on the map below.'}{distanceKm != null && ` · ${formatDistance(distanceKm)}`}</p>
+               <div className="map-wrap">
+                 <MapView lat={worker.locationLat} lng={worker.locationLng} height="220px" />
+               </div>
+               <button
+                 className="btn btn-primary btn-block"
+                 onClick={openDirections}
+                 disabled={directionsLoading}
+                 style={{ marginTop: 12 }}
+               >
+                 {directionsLoading ? 'Getting your location...' : t('getDirections')}
+               </button>
+               {geo.status === 'denied' && (
+                 <p style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 6 }}>
+                   Location permission denied. You'll need to enter your location manually in Google Maps.
+                 </p>
+               )}
+             </div>
+           )}
+   
+           {resumeImages.length > 0 && (
+             <div className="desc-block">
+               <h3>Resume</h3>
+               <div className="image-preview-grid">
+                 {resumeImages.map((src, i) => (
+                   <div className="image-preview" key={src} onClick={() => setLightboxIndex(i)} style={{ cursor: 'pointer' }}>
+                     <img src={src} alt={`Resume page ${i + 1}`} />
+                   </div>
+                 ))}
+               </div>
+             </div>
+           )}
+   
+           {!isSelf && !worker.suspended && (whatsappLink || worker.phone) && (
+             <div className="action-row" style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+               {whatsappLink && (
+                 <a
+                   href={whatsappLink}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="btn btn-block"
+                   style={{ background: '#25D366', color: '#fff', textAlign: 'center', display: 'block', textDecoration: 'none', padding: '10px 14px', borderRadius: 8 }}
+                 >
+                   {t('applyWhatsApp')}
+                 </a>
+               )}
+               {worker.phone && (
+                 <a
+                   href={`tel:${worker.phone}`}
+                   className="btn btn-outline btn-block"
+                   style={{ textAlign: 'center', display: 'block', textDecoration: 'none', padding: '10px 14px' }}
+                 >
+                   📞 {worker.phone}
+                 </a>
+               )}
+             </div>
+           )}
+   
+           <div className="desc-block" style={{ marginTop: 20 }}>
+             <h3>{t('reviews')}</h3>
+             <ReviewsList key={reviewsKey} toUserId={worker.userId} />
+             {user && !isSelf && !worker.suspended && (
+               <button className="btn btn-outline btn-sm" style={{ marginTop: 10 }} onClick={() => setReviewOpen(true)}>{t('writeReview')}</button>
+             )}
+           </div>
+         </div>
+   
+         {reviewOpen && (
+           <ReviewFormModal
+             toUserId={worker.userId}
+             toRole="worker"
+             onClose={() => setReviewOpen(false)}
+             onSubmitted={() => { setReviewOpen(false); setReviewsKey((k) => k + 1); load(); toast('Thanks for your review!', 'success'); }}
+           />
+         )}
+   
+         <Lightbox
+           images={resumeImages}
+           index={lightboxIndex}
+           onClose={() => setLightboxIndex(null)}
+           onNav={(dir) => setLightboxIndex((i) => (i + dir + resumeImages.length) % resumeImages.length)}
+         />
+       </div>
+     );
+   }
+   
+   function MyProfileTab() {
+     const { user, updateUserLocal } = useAuth();
+     const toast = useToast();
+     const t = useT();
+     const [form, setForm] = useState(null);
+     const [saving, setSaving] = useState(false);
+     const [error, setError] = useState(null);
+   
+     useEffect(() => {
+       apiCall('getWorkerProfile', { userId: user.userId }).then((d) => setForm(d.user)).catch((e) => setError(e.message));
+     }, [user.userId]);
+   
+     if (error && !form) return <ErrorState message={error} />;
+     if (!form) return <Spinner label="Loading your profile..." />;
+   
+     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+     const hasLocation = form.locationLat != null && form.locationLng != null;
+     const needsWorkerLocation = form.userType === 'worker' || form.userType === 'both';
+     const needsWorkerPhone = form.userType === 'worker' || form.userType === 'both';
+   
+     const save = async () => {
+       // FIX: previously you could save with only a typed address and no
+       // map pin — the address text saved fine, but "Workers near you"
+       // needs real coordinates, so those profiles were invisible there.
+       if (needsWorkerLocation && !hasLocation) {
+         setError('Please pin your location on the map below before saving — an address alone isn\'t enough for "Workers near you" to find you.');
+         return;
+       }
+       // Phone is mandatory for any account that can show up as a worker,
+       // since it's the primary way businesses reach out from "Find Workers".
+       if (needsWorkerPhone && !String(form.phone || '').trim()) {
+         setError('A phone number is required so businesses can contact you from "Find Workers".');
+         return;
+       }
+       setSaving(true); setError(null);
+       try {
+         const d = await apiCall('updateWorkerProfile', {
+           userId: user.userId, userType: form.userType, skillCategories: form.skillCategories,
+           experienceYears: form.experienceYears, bio: form.bio, availableNow: form.availableNow,
+           locationLat: form.locationLat, locationLng: form.locationLng, locationAddress: form.locationAddress,
+           phone: form.phone, publicEmail: form.publicEmail, profilePhoto: form.profilePhoto,
+           resumeImages: form.resumeImages || []
+         });
+         updateUserLocal(d.user);
+         setForm(d.user);
+         toast('Profile updated.', 'success');
+       } catch (err) { setError(err.message); } finally { setSaving(false); }
+     };
+   
+     const referralLink = `${typeof window !== 'undefined' ? window.location.origin : ''}?ref=${form.referralCode}`;
+   
+     return (
+       <div className="card" style={{ maxWidth: 640 }}>
+         {form.suspended && (
+           <div className="takedown-banner" style={{ marginBottom: 16 }}>
+             <div>
+               <strong>Your profile has been suspended by an admin</strong>
+               {form.suspendReason ? ` Reason: ${form.suspendReason}` : ''} You can still edit your details below, but you won't appear in "Workers near you" until an admin restores your profile.
+             </div>
+           </div>
+         )}
+   
+         <div className="form-section-title">Profile photo</div>
+         <ProfilePhotoUploader photo={form.profilePhoto} onChange={(url) => set('profilePhoto', url)} />
+   
+         <div className="form-section-title" style={{ marginTop: 22 }}>Profile type</div>
+         <div className="field">
+           <label>I am a</label>
+           <select value={form.userType} onChange={(e) => set('userType', e.target.value)}>
+             {USER_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+           </select>
+           <div className="field-hint" style={{ marginTop: 4 }}>
+             "Business / Employer" and "Both" can post worker requirements. A pure "Job Seeker (Worker)" account browses and applies but can't post.
+           </div>
+         </div>
+   
+         <div className="form-section-title">Contact details</div>
+         <div className="field">
+           <label>Phone number {needsWorkerPhone && <span style={{ color: 'var(--danger, #d9363e)' }}>*</span>}</label>
+           <input value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="10-digit mobile number" />
+           {needsWorkerPhone && (
+             <div className="field-hint" style={{ marginTop: 4 }}>
+               Required — shown to businesses in "Find Workers" so they can call or WhatsApp you.
+             </div>
+           )}
+         </div>
+         <div className="field">
+           <label>Public email (optional)</label>
+           <input type="email" value={form.publicEmail || ''} onChange={(e) => set('publicEmail', e.target.value)} placeholder="e.g. yourname@email.com" />
+           <div className="field-hint" style={{ marginTop: 4 }}>
+             Optional — shown on your public profile. Leave blank if you don't want to share an email.
+           </div>
+         </div>
+   
+         {(form.userType === 'worker' || form.userType === 'both') && (
+           <>
+             <div className="form-section-title">Worker profile (shown when businesses browse workers)</div>
+             <div className="field">
+               <label>Skill categories</label>
+               <input value={form.skillCategories || ''} onChange={(e) => set('skillCategories', e.target.value)} placeholder="e.g. Electrician, Driver" />
+             </div>
+             <div className="field">
+               <label>Experience</label>
+               <input value={form.experienceYears || ''} onChange={(e) => set('experienceYears', e.target.value)} placeholder="e.g. 3 years" />
+             </div>
+             <div className="field">
+               <label>Short bio</label>
+               <textarea value={form.bio || ''} onChange={(e) => set('bio', e.target.value)} placeholder="Tell businesses a bit about yourself..." />
+             </div>
+             <div className="field">
+               <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                 <input type="checkbox" checked={!!form.availableNow} onChange={(e) => set('availableNow', e.target.checked)} />
+                 🟢 {t('availableNow')} — show me to businesses searching for workers
+               </label>
+             </div>
+   
+             <div className="field">
+               <label>Resume (optional)</label>
+               <div className="field-hint" style={{ marginBottom: 8 }}>
+                 Add photos of your resume, certificates, or ID proof — businesses can view these on your profile. You can add several.
+               </div>
+               <ImageUploader
+                 images={form.resumeImages || []}
+                 onChange={(updater) => setForm((f) => ({
+                   ...f,
+                   resumeImages: typeof updater === 'function' ? updater(f.resumeImages || []) : updater
+                 }))}
+               />
+             </div>
+   
+             <div className="field">
+               <label>Your location</label>
+               {!hasLocation && (
+                 <div className="profile-location-prompt">
+                   📍 You haven't pinned a location yet — businesses searching "Workers near you" and sorting by distance won't be able to find you until you do. Pick your location on the map below (typing an address alone isn't enough).
+                 </div>
+               )}
+               <div className="field-hint" style={{ marginBottom: 8 }}>
+                 This is used to show you in "Workers near you" search results and to let businesses see roughly how far you are.
+               </div>
+               <LocationPicker
+                 lat={form.locationLat} lng={form.locationLng} address={form.locationAddress}
+                 onChange={(lat, lng, address) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng, locationAddress: address }))}
+               />
+             </div>
+           </>
+         )}
+   
+         {error && <div className="error-box" style={{ marginBottom: 12 }}>{error}</div>}
+         <button className="btn btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save profile'}</button>
+   
+         <div className="form-section-title" style={{ marginTop: 26 }}>{t('referral')}</div>
+         <div className="spec-list">
+           <div className="spec-row"><span className="label">Code</span><span className="val mono">{form.referralCode}</span></div>
+           <div className="spec-row"><span className="label">Share link</span><span className="val mono" style={{ wordBreak: 'break-all' }}>{referralLink}</span></div>
+         </div>
+         <p style={{ fontSize: 12, color: 'var(--text-mute)' }}>Share this code with friends — when they sign up and mention it, they're linked as your referral.</p>
        </div>
      );
    }
@@ -1619,22 +2850,51 @@
    // ==============================================================
    function UserDashboardPage({ navigate }) {
      const { user } = useAuth();
-     const [tab, setTab] = useState('myads');
+     // Worker-only accounts can't post ads, so "My posted ads" would
+     // otherwise be the default while being invisible to them — default
+     // to "Saved advertisements" instead. Business/both/admin still
+     // default to "My posted ads".
+     const [tab, setTab] = useState(() => (canPostAds(user) ? 'myads' : 'saved'));
+     const [menuOpen, setMenuOpen] = useState(false);
+   
+     const tabDefs = [
+       ...(canPostAds(user) ? [{ id: 'myads', label: 'My posted ads' }] : []),
+       { id: 'saved', label: 'Saved advertisements' },
+       { id: 'reports', label: 'My reports' },
+       { id: 'profile', label: 'My Profile' },
+     ];
+     const currentLabel = (tabDefs.find((tb) => tb.id === tab) || {}).label || 'My dashboard';
    
      return (
        <div className="container form-page" style={{ maxWidth: 1000 }}>
          <h1>My dashboard</h1>
          <p style={{ color: 'var(--text-mute)', marginBottom: 20 }}>Welcome back, {user.name}.</p>
    
-         <div className="tabs">
-           <button className={`tab ${tab === 'myads' ? 'active' : ''}`} onClick={() => setTab('myads')}>My posted ads</button>
-           <button className={`tab ${tab === 'saved' ? 'active' : ''}`} onClick={() => setTab('saved')}>Saved advertisements</button>
-           <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>My reports</button>
+         <div className="section-head" style={{ marginTop: 0, marginBottom: 18 }}>
+           <h2 style={{ fontSize: 20 }}>{currentLabel}</h2>
+           <button className="btn btn-outline filters-toggle-btn" onClick={() => setMenuOpen(true)}>
+             ☰ Menu
+           </button>
          </div>
    
-         {tab === 'myads' && <MyAdsTab navigate={navigate} />}
+         {tab === 'myads' && canPostAds(user) && <MyAdsTab navigate={navigate} />}
          {tab === 'saved' && <SavedAdsTab navigate={navigate} />}
          {tab === 'reports' && <MyReportsTab />}
+         {tab === 'profile' && <MyProfileTab />}
+   
+         <FilterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} title="Dashboard menu">
+           <div className="drawer-tab-list">
+             {tabDefs.map((tb) => (
+               <button
+                 key={tb.id}
+                 className={`drawer-tab-btn ${tab === tb.id ? 'active' : ''}`}
+                 onClick={() => { setTab(tb.id); setMenuOpen(false); }}
+               >
+                 {tb.label}
+               </button>
+             ))}
+           </div>
+         </FilterDrawer>
        </div>
      );
    }
@@ -1776,11 +3036,14 @@
      return (
        <div className="container form-page" style={{ maxWidth: 1100 }}>
          <h1>Admin dashboard</h1>
+         <p style={{ color: 'var(--text-mute)', marginBottom: 12 }}>
+           You have full access as a normal user (browse jobs, browse workers, post ads) plus moderation tools below.
+         </p>
          <div className="tabs">
            <button className={`tab ${tab === 'overview' ? 'active' : ''}`} onClick={() => setTab('overview')}>Overview</button>
            <button className={`tab ${tab === 'ads' ? 'active' : ''}`} onClick={() => setTab('ads')}>Advertisements</button>
            <button className={`tab ${tab === 'reports' ? 'active' : ''}`} onClick={() => setTab('reports')}>Reports</button>
-           <button className={`tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>Users</button>
+           <button className={`tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')}>Users & Profiles</button>
          </div>
          {tab === 'overview' && <AdminOverviewTab />}
          {tab === 'ads' && <AdminAdsTab />}
@@ -1809,8 +3072,12 @@
            <div className="stat-card"><div className="num">{stats.inactiveAds}</div><div className="lbl">Paused ads</div></div>
            <div className="stat-card danger"><div className="num">{stats.takenDownAds}</div><div className="lbl">Taken down</div></div>
            <div className="stat-card"><div className="num">{stats.totalAds}</div><div className="lbl">Total ads posted</div></div>
+           <div className="stat-card success"><div className="num">{stats.urgentAds}</div><div className="lbl">🔥 Urgent ads</div></div>
            <div className="stat-card success"><div className="num">{stats.totalWorkersRequested}</div><div className="lbl">Workers currently sought</div></div>
            <div className="stat-card"><div className="num">{stats.totalUsers}</div><div className="lbl">Registered users</div></div>
+           <div className="stat-card"><div className="num">{stats.verifiedUsers}</div><div className="lbl">Verified users</div></div>
+           <div className="stat-card danger"><div className="num">{stats.suspendedUsers != null ? stats.suspendedUsers : '—'}</div><div className="lbl">Suspended profiles</div></div>
+           <div className="stat-card"><div className="num">{stats.workersWithLocation != null ? stats.workersWithLocation : '—'}</div><div className="lbl">Workers with location set</div></div>
            <div className="stat-card danger"><div className="num">{stats.pendingReports}</div><div className="lbl">Pending reports</div></div>
          </div>
          <h3>Requirements by category</h3>
@@ -1862,7 +3129,7 @@
            <tbody>
              {ads.map((ad) => (
                <tr key={ad.adId}>
-                 <td>{ad.jobTitle}</td>
+                 <td>{ad.jobTitle} {ad.urgent && <span title="Urgent">🔥</span>}</td>
                  <td>{ad.businessName}</td>
                  <td>{categoryOf(ad)}</td>
                  <td><StatusBadge status={ad.status} /></td>
@@ -1978,12 +3245,44 @@
    
    function AdminUsersTab() {
      const { user } = useAuth();
+     const toast = useToast();
      const [users, setUsers] = useState(null);
      const [error, setError] = useState(null);
+     const [busyId, setBusyId] = useState(null);
    
-     useEffect(() => {
+     const load = useCallback(() => {
+       setUsers(null); setError(null);
        apiCall('getAllUsers', { adminId: user.userId }).then((d) => setUsers(d.users)).catch((e) => setError(e.message));
      }, [user.userId]);
+   
+     useEffect(() => { load(); }, [load]);
+   
+     const toggleVerified = async (u) => {
+       setBusyId(u.userId);
+       try {
+         await apiCall('verifyUser', { adminId: user.userId, userId: u.userId, verified: !u.verified });
+         toast(u.verified ? 'Verification removed.' : 'User verified.', 'success');
+         load();
+       } catch (err) { toast(err.message, 'error'); } finally { setBusyId(null); }
+     };
+   
+     // NEW: suspend/restore a worker or business profile — hides them
+     // from public "Find Workers" search and flags their profile page.
+     const toggleSuspended = async (u) => {
+       setBusyId(u.userId);
+       try {
+         if (u.suspended) {
+           await apiCall('restoreUserProfile', { adminId: user.userId, userId: u.userId });
+           toast('Profile restored.', 'success');
+         } else {
+           const reason = prompt('Reason for suspending this profile (shown to the user):', 'This profile was suspended by an admin.');
+           if (reason === null) { setBusyId(null); return; }
+           await apiCall('suspendUser', { adminId: user.userId, userId: u.userId, suspendReason: reason });
+           toast('Profile suspended.', 'success');
+         }
+         load();
+       } catch (err) { toast(err.message, 'error'); } finally { setBusyId(null); }
+     };
    
      if (error) return <ErrorState message={error} />;
      if (!users) return <Spinner label="Loading users..." />;
@@ -1991,13 +3290,35 @@
      return (
        <div className="table-wrap">
          <table>
-           <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Joined</th></tr></thead>
+           <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Type</th><th>Location</th><th>Rating</th><th>Status</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
            <tbody>
              {users.map((u) => (
                <tr key={u.userId}>
-                 <td>{u.name}</td><td>{u.email}</td><td>{u.phone || '—'}</td>
+                 <td>{u.name} {u.verified && <VerifiedBadge small />}</td>
+                 <td>{u.email}</td><td>{u.phone || '—'}</td>
+                 <td>{u.userType || '—'}</td>
+                 <td>{u.locationAddress || (u.locationLat != null ? 'Pinned, no address' : '—')}</td>
+                 <td>{u.ratingCount > 0 ? <StarRating value={u.avgRating} count={u.ratingCount} /> : '—'}</td>
+                 <td>{u.suspended ? <SuspendedBadge small /> : <span style={{ color: 'var(--success, #1a9d5c)', fontSize: 12 }}>Active</span>}</td>
                  <td>{u.role === 'admin' ? <span className="badge badge-admin">Admin</span> : 'User'}</td>
                  <td className="mono">{new Date(u.createdAt).toLocaleDateString()}</td>
+                 <td className="row-actions">
+                   {u.role !== 'admin' && (
+                     <>
+                       <button className="btn btn-outline btn-sm" disabled={busyId === u.userId} onClick={() => toggleVerified(u)}>
+                         {u.verified ? 'Unverify' : 'Verify'}
+                       </button>
+                       <button
+                         className={`btn btn-sm ${u.suspended ? 'btn-success' : 'btn-danger'}`}
+                         disabled={busyId === u.userId}
+                         onClick={() => toggleSuspended(u)}
+                         style={{ marginLeft: 6 }}
+                       >
+                         {u.suspended ? 'Restore profile' : 'Suspend profile'}
+                       </button>
+                     </>
+                   )}
+                 </td>
                </tr>
              ))}
            </tbody>
@@ -2012,10 +3333,19 @@
    function LoginPage({ navigate, initialMode, redirectTo }) {
      const { login } = useAuth();
      const toast = useToast();
+     const t = useT();
      const [mode, setMode] = useState(initialMode || 'login');
-     const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
+     const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', userType: 'worker', referredBy: '' });
      const [busy, setBusy] = useState(false);
      const [error, setError] = useState(null);
+   
+     useEffect(() => {
+       try {
+         const params = new URLSearchParams(window.location.search);
+         const ref = params.get('ref');
+         if (ref) setForm((f) => ({ ...f, referredBy: ref }));
+       } catch (e) {}
+     }, []);
    
      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
    
@@ -2035,7 +3365,7 @@
      return (
        <div className="auth-wrap">
          <div className="auth-card">
-           <h2>{mode === 'login' ? 'Log in' : 'Create your account'}</h2>
+           <h2>{mode === 'login' ? t('login') : 'Create your account'}</h2>
            <div className="sub">{mode === 'login' ? 'Access your dashboard and saved jobs.' : 'Post job requirements or apply to local jobs.'}</div>
            <form onSubmit={submit}>
              {mode === 'register' && (
@@ -2045,10 +3375,25 @@
              {mode === 'register' && (
                <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => set('phone', e.target.value)} /></div>
              )}
+             {mode === 'register' && (
+               <div className="field">
+                 <label>I am a</label>
+                 <select value={form.userType} onChange={(e) => set('userType', e.target.value)}>
+                   {USER_TYPES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                 </select>
+                 <div className="field-hint" style={{ marginTop: 4 }}>
+                   Business and Both accounts can post worker requirements; you can change this later in My Profile.
+                 </div>
+               </div>
+             )}
              <div className="field"><label>Password</label><input required type="password" value={form.password} onChange={(e) => set('password', e.target.value)} /></div>
+             {mode === 'register' && (
+               <div className="field"><label>Referral code (optional)</label>
+                 <input value={form.referredBy} onChange={(e) => set('referredBy', e.target.value)} placeholder="e.g. AB12CD" /></div>
+             )}
    
              {error && <div className="error-box" style={{ marginBottom: 14 }}>{error}</div>}
-             <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Please wait...' : (mode === 'login' ? 'Log in' : 'Sign up')}</button>
+             <button className="btn btn-primary btn-block" disabled={busy}>{busy ? 'Please wait...' : (mode === 'login' ? t('login') : t('signup'))}</button>
            </form>
            <div className="auth-switch">
              {mode === 'login'
