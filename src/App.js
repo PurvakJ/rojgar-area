@@ -1082,45 +1082,52 @@
      };
    
      return (
-       <div className="footer">
-         <div className="container">
-           <div className="footer-grid">
-             <div className="footer-col">
-               <h4>Rojgar AREA</h4>
-               <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
-             </div>
-             <div className="footer-col">
-               <h4>Quick Links</h4>
-               <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
-               <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
-               <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
-               <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
-             </div>
-             <div className="footer-col">
-               <h4>Popular Searches</h4>
-               <button className="footer-link" onClick={handleNav('browse', )}>Jobs Near Me</button>
-               <button className="footer-link" onClick={handleNav('browse',  )}>Hiring Today</button>
-               <button className="footer-link" onClick={handleNav('browse', )}>Part Time Jobs</button>
-               <button className="footer-link" onClick={handleNav('browse', )}>Fresher Jobs</button>
-             </div>
-             <div className="footer-col">
-               <h4>Legal</h4>
-               <button className="footer-link" onClick={() => setModal('privacy')}>Privacy Policy</button>
-               <button className="footer-link" onClick={() => setModal('terms')}>Terms of Service</button>
-               <button className="footer-link" onClick={() => setModal('cookies')}>Cookie Policy</button>
-               <button className="footer-link" onClick={() => setModal('contact')}>Contact Developer</button>
-             </div>
-           </div>
-           <div className="footer-bottom">
-             <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
-           </div>
-         </div>
-   
-         {(modal === 'privacy' || modal === 'terms' || modal === 'cookies') && (
-           <LegalModal contentKey={modal} onClose={() => setModal(null)} />
-         )}
-         {modal === 'contact' && <ContactDeveloperModal onClose={() => setModal(null)} />}
-       </div>
+<div className="footer">
+  <div className="container">
+    <div className="footer-grid">
+      <div className="footer-col">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+          <img 
+            src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png" 
+            alt="Rojgar AREA Logo" 
+            style={{ height: '40px', width: 'auto' }}
+          />
+          <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
+        </div>
+        <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
+      </div>
+      <div className="footer-col">
+        <h4>Quick Links</h4>
+        <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
+        <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
+        <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
+        <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
+      </div>
+      <div className="footer-col">
+        <h4>Popular Searches</h4>
+        <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
+        <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
+        <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
+        <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
+      </div>
+      <div className="footer-col">
+        <h4>Legal</h4>
+        <button className="footer-link" onClick={() => setModal('privacy')}>Privacy Policy</button>
+        <button className="footer-link" onClick={() => setModal('terms')}>Terms of Service</button>
+        <button className="footer-link" onClick={() => setModal('cookies')}>Cookie Policy</button>
+        <button className="footer-link" onClick={() => setModal('contact')}>Contact Developer</button>
+      </div>
+    </div>
+    <div className="footer-bottom">
+      <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
+    </div>
+  </div>
+
+  {(modal === 'privacy' || modal === 'terms' || modal === 'cookies') && (
+    <LegalModal contentKey={modal} onClose={() => setModal(null)} />
+  )}
+  {modal === 'contact' && <ContactDeveloperModal onClose={() => setModal(null)} />}
+</div>
      );
    }
    
@@ -1163,7 +1170,7 @@
         <div className="container navbar-inner">
           <div className="brand" onClick={() => { navigate('home'); closeMenu(); }}>
             <img
-              src="https://i.postimg.cc/J7SjVdTM/8798a3b8-de7e-4822-a59f-fbb77cabfb7c.png"
+              src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
               alt="Rojgar AREA Logo"
               className="brand-logo"
               style={{ height: '40px', width: 'auto' }}
