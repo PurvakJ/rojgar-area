@@ -1323,7 +1323,7 @@
            </div>
            <div className="hero-particles"></div>
            <div className="container">
-             <div className="hero-badge animate-float">🇮🇳 India's Local Job Platform</div>
+             <div className="hero-badge animate-float">🇮🇳 India's First Local Job Platform</div>
              <h1 className="animate-slide-up">{t('heroTitle')}</h1>
              <p className="animate-slide-up-delay">{t('heroSubtitle')}</p>
              
@@ -1462,29 +1462,9 @@
              </div>
            </div>
          </div>
-   
-         {/* HOW IT WORKS */}
-         <div className="how-it-works">
-           <div className="container">
-             <AnimatedSection className="section-head text-center">
-               <h2>{t('howItWorks')}</h2>
-               <p>Three simple steps to find your next job opportunity</p>
-             </AnimatedSection>
-             <div className="steps-grid">
-               {steps.map((step, i) => (
-                 <AnimatedCard key={i} delay={i * 100} className="step-card">
-                   <div className="step-number">{step.number}</div>
-                   <div className="step-icon">{step.icon}</div>
-                   <h3>{step.title}</h3>
-                   <p>{step.description}</p>
-                 </AnimatedCard>
-               ))}
-             </div>
-           </div>
-         </div>
-   
-         {/* LATEST JOBS SECTION */}
-         <div className="container">
+
+                  {/* LATEST JOBS SECTION */}
+                  <div className="container">
            <LocationBanner />
    
            <div className="section-head">
@@ -1512,11 +1492,28 @@
              </div>
            )}
    
-           {/* SEO CONTENT */}
-           <div className="seo-content">
-
+         </div>
+   
+         {/* HOW IT WORKS */}
+         <div className="how-it-works">
+           <div className="container">
+             <AnimatedSection className="section-head text-center">
+               <h2>{t('howItWorks')}</h2>
+               <p>Three simple steps to find your next job opportunity</p>
+             </AnimatedSection>
+             <div className="steps-grid">
+               {steps.map((step, i) => (
+                 <AnimatedCard key={i} delay={i * 100} className="step-card">
+                   <div className="step-number">{step.number}</div>
+                   <div className="step-icon">{step.icon}</div>
+                   <h3>{step.title}</h3>
+                   <p>{step.description}</p>
+                 </AnimatedCard>
+               ))}
+             </div>
            </div>
          </div>
+   
        </div>
      );
    }
