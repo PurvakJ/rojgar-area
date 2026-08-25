@@ -3081,3 +3081,20 @@
     font-size: 40px;
   }
 }
+
+/* Replace the existing .brand-text styles with this */
+.brand-text {
+  color: #fff;
+  font-size: 22px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  text-transform: none !important;  /* Changed from 'uppercase' to 'none' */
+  text-decoration: none !important;
+}
+
+.brand-text span {
+  color: var(--accent);
+  text-transform: none !important;  /* Changed from 'uppercase' to 'none' */
+  text-decoration: none !important;
+}
