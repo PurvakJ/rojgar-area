@@ -1,11 +1,58 @@
 /* ==========================================================
-   Rojgar AREA — Frontend (Enhanced v6)
+   Rojgar AREA — Frontend (Enhanced v7)
    Plain React 18 + Babel-standalone (no build step).
    Backend: Google Apps Script Web App (Code.gs)
    Images:  Cloudinary unsigned upload
    Map:     Leaflet + OpenStreetMap tiles (no API key needed)
 
-   NEW IN THIS VERSION (v6):
+   NEW IN THIS VERSION (v7):
+   - Real URL routing via the browser History API — no more router
+     library, but the address bar now actually reflects the page:
+       /                 -> Home
+       /browse           -> Browse Jobs
+       /browse/:adId     -> Advertisement details
+       /workers          -> Find Workers
+       /workers/:userId  -> Worker profile
+       /post             -> Post a requirement
+       /edit/:adId       -> Edit a requirement
+       /dashboard        -> My Dashboard
+       /admin            -> Admin Dashboard
+       /login, /register -> Auth pages
+     Back/forward buttons, refresh, and shared/bookmarked links to
+     e.g. https://rojgararea.online/browse/<adId> now work. See the
+     "ROUTER" section below (pathForRoute / routeFromPath) and the
+     App() component's navigate()/popstate wiring.
+     IMPORTANT DEPLOYMENT NOTE: because this is a single-page app,
+     your static host must be configured to serve index.html for
+     ANY path (a "SPA rewrite" / catch-all fallback), otherwise a
+     direct visit or refresh on e.g. /browse/abc123 will 404. See
+     the deployment note at the bottom of this comment block.
+   - Home page now shows only the first 6 Popular Job Categories,
+     laid out in a single row (categories-grid-line — horizontally
+     scrollable on narrow screens instead of wrapping), and only
+     the first 6 Recently Posted Requirements, laid out in a fixed
+     3-across grid (grid-home-recent) so 6 items form 2 rows of 3.
+
+   DEPLOYMENT NOTE (SPA rewrites for the new URL routing):
+   - Netlify: add a file called `_redirects` (no extension) to your
+     publish folder with this single line:
+         /*    /index.html   200
+   - Vercel: add a `vercel.json` with:
+         { "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
+   - Apache: add a `.htaccess` in the same folder as index.html:
+         RewriteEngine On
+         RewriteBase /
+         RewriteRule ^index\.html$ - [L]
+         RewriteCond %{REQUEST_FILENAME} !-f
+         RewriteCond %{REQUEST_FILENAME} !-d
+         RewriteRule . /index.html [L]
+   - Nginx:
+         location / { try_files $uri /index.html; }
+   Without one of these, only "/" will load correctly when visited
+   directly — in-app navigation (clicking links) will still work
+   fine either way, since that never leaves the page.
+
+   NEW IN v6:
    - "Browse Jobs" and "Find Workers" no longer show a permanent
      filter sidebar. Filters now live inside a hamburger-triggered
      slide-in drawer, opened with a "☰ Filters" button next to the
@@ -119,7 +166,10 @@
    ];
    const RADIUS_OPTIONS = [2, 5, 10, 20, 50];
    const HOME_DEFAULT_RADIUS = 10;
-   const HOME_MAX_RESULTS = 12;
+   // Home page now shows only 6 Popular Job Categories (single line)
+   // and only 6 Recently Posted Requirements (3x2 grid) — see v7 notes above.
+   const HOME_MAX_RESULTS = 6;
+   const HOME_MAX_CATEGORIES = 6;
    const DEFAULT_CENTER = { lat: 30.9010, lng: 75.8573 };
    
    const USER_TYPES = [
@@ -420,6 +470,70 @@
        return (Number(b.avgRating) || 0) - (Number(a.avgRating) || 0);
      });
      return list;
+   }
+   
+   // ------------------------------------------------------------
+   // ROUTER — plain History API based path routing (no library, no
+   // build step). Translates between an in-app {page, params} route
+   // and a real, shareable URL path, so a deployment at e.g.
+   // https://rojgararea.online/ behaves like:
+   //   /                 -> home
+   //   /browse           -> browse (Browse Jobs listing)
+   //   /browse/:adId     -> details (Advertisement details)
+   //   /workers          -> workers (Find Workers listing)
+   //   /workers/:userId  -> worker-details (Worker profile)
+   //   /post             -> post (Post a requirement)
+   //   /edit/:adId       -> edit (Edit a requirement)
+   //   /dashboard        -> dashboard (My Dashboard)
+   //   /admin            -> admin (Admin Dashboard)
+   //   /login            -> login
+   //   /register         -> register
+   // Anything else falls back to home. Query-string filters (e.g. the
+   // ones passed from the homepage's category cards) are kept in
+   // in-memory route.params only — they aren't encoded into the URL —
+   // so a browser refresh or a shared link resets filters but always
+   // lands on the right page/record.
+   // ------------------------------------------------------------
+   function pathForRoute(page, params) {
+     params = params || {};
+     switch (page) {
+       case 'home': return '/';
+       case 'browse': return '/browse';
+       case 'details': return params.adId ? `/browse/${encodeURIComponent(params.adId)}` : '/browse';
+       case 'workers': return '/workers';
+       case 'worker-details': return params.userId ? `/workers/${encodeURIComponent(params.userId)}` : '/workers';
+       case 'post': return '/post';
+       case 'edit': return params.adId ? `/edit/${encodeURIComponent(params.adId)}` : '/post';
+       case 'dashboard': return '/dashboard';
+       case 'admin': return '/admin';
+       case 'login': return '/login';
+       case 'register': return '/register';
+       default: return '/';
+     }
+   }
+   
+   function routeFromPath(pathname) {
+     const parts = String(pathname || '/')
+       .split('/')
+       .filter(Boolean)
+       .map((p) => { try { return decodeURIComponent(p); } catch (e) { return p; } });
+   
+     if (parts.length === 0) return { page: 'home', params: {} };
+   
+     switch (parts[0]) {
+       case 'browse':
+         return parts[1] ? { page: 'details', params: { adId: parts[1] } } : { page: 'browse', params: {} };
+       case 'workers':
+         return parts[1] ? { page: 'worker-details', params: { userId: parts[1] } } : { page: 'workers', params: {} };
+       case 'edit':
+         return parts[1] ? { page: 'edit', params: { adId: parts[1] } } : { page: 'home', params: {} };
+       case 'post': return { page: 'post', params: {} };
+       case 'dashboard': return { page: 'dashboard', params: {} };
+       case 'admin': return { page: 'admin', params: {} };
+       case 'login': return { page: 'login', params: {} };
+       case 'register': return { page: 'register', params: {} };
+       default: return { page: 'home', params: {} };
+     }
    }
    
    // ------------------------------------------------------------
@@ -880,13 +994,33 @@
      const [lang, setLang] = useState(() => {
        try { return localStorage.getItem('kb_lang') || 'en'; } catch (e) { return 'en'; }
      });
-     const [route, setRoute] = useState({ page: 'home', params: {} });
+     // Route state is seeded from the real URL on first load, so a
+     // direct visit / refresh / bookmark of e.g. /browse/<adId> opens
+     // straight to that page instead of always landing on Home.
+     const [route, setRoute] = useState(() => {
+       try { return routeFromPath(window.location.pathname); } catch (e) { return { page: 'home', params: {} }; }
+     });
      const [toast, setToast] = useState(null);
      const geo = useGeolocation();
    
      useEffect(() => { geo.request(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
    
+     // Keep in-app route state in sync with the browser's Back/Forward
+     // buttons (popstate fires on those, but not on our own pushState
+     // calls from navigate() below).
+     useEffect(() => {
+       const onPopState = () => {
+         setRoute(routeFromPath(window.location.pathname));
+       };
+       window.addEventListener('popstate', onPopState);
+       return () => window.removeEventListener('popstate', onPopState);
+     }, []);
+   
      const navigate = (page, params = {}) => {
+       const path = pathForRoute(page, params);
+       if (typeof window !== 'undefined' && window.location.pathname !== path) {
+         window.history.pushState({ page, params }, '', path);
+       }
        setRoute({ page, params });
        window.scrollTo(0, 0);
      };
@@ -1248,6 +1382,8 @@
        }
      };
    
+     // Home shows only the first HOME_MAX_RESULTS (6) recent/nearby
+     // listings — "View all" on Browse Jobs shows the rest.
      const nearby = useMemo(() => {
        if (!allAds) return null;
        const filters = geo.status === 'granted'
@@ -1266,6 +1402,8 @@
        [allAds]
      );
    
+     // Home shows only the first HOME_MAX_CATEGORIES (6) categories,
+     // laid out in a single row (categories-grid-line).
      const jobCategories = useMemo(() => {
        const counts = {};
        (allAds || []).forEach((ad) => {
@@ -1276,7 +1414,7 @@
        });
        return Object.entries(counts)
          .sort((a, b) => b[1] - a[1])
-         .slice(0, 8)
+         .slice(0, HOME_MAX_CATEGORIES)
          .map(([name, count]) => ({ 
            icon: CATEGORY_ICONS[name] || '📋', 
            name, 
@@ -1379,7 +1517,7 @@
            </div>
          )}
    
-         {/* JOB CATEGORIES SECTION with images */}
+         {/* JOB CATEGORIES SECTION with images — 6 categories, single line */}
          <div className="categories-section">
            <div className="container">
              <AnimatedSection className="section-head text-center">
@@ -1397,7 +1535,7 @@
                </p>
              )}
              {jobCategories.length > 0 && (
-               <div className="categories-grid">
+               <div className="categories-grid-line">
                  {jobCategories.map((cat, i) => (
                    <AnimatedCard key={i} delay={i * 50} className="category-card" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, category: cat.name } })}>
                      {cat.image && (
@@ -1463,7 +1601,7 @@
            </div>
          </div>
 
-                  {/* LATEST JOBS SECTION */}
+                  {/* LATEST JOBS SECTION — 6 listings, 3x2 grid */}
                   <div className="container">
            <LocationBanner />
    
@@ -1483,7 +1621,7 @@
              <EmptyState icon="🗂️" title="No advertisements found nearby" message="Try widening your search radius from the Browse Jobs page." />
            )}
            {nearby && nearby.length > 0 && (
-             <div className="grid">
+             <div className="grid-home-recent">
                {nearby.map((ad, i) => (
                  <AnimatedCard key={ad.adId} delay={i * 50}>
                    <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />

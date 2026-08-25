@@ -16,6 +16,14 @@
    2) A diagonal caution-tape seam, used at the hero's lower
       edge and on "Urgent / Hiring Today" ribbons — because
       that actually is what hazard tape signals.
+
+   v7 UPDATE: Home page now uses two new layout classes —
+   .categories-grid-line (6 Popular Job Categories, single row,
+   horizontally scrollable on narrow screens) and
+   .grid-home-recent (6 Recently Posted Requirements, fixed
+   3-across grid so 6 cards form 2 rows of 3). See the
+   "HOME — SINGLE-LINE CATEGORIES" and "HOME — 3x2 RECENT
+   LISTINGS GRID" sections near the end of this file.
    ========================================================== */
 
    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -633,6 +641,9 @@
      margin-left: 8px;
    }
    
+   /* Legacy responsive multi-row grid — still used anywhere a category
+      or similar tile grid should wrap normally (kept for compatibility;
+      the Home page itself now uses .categories-grid-line below). */
    .categories-grid {
      display: grid;
      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -2195,4 +2206,62 @@
 
 @media (max-width: 480px) {
   .filter-drawer { width: 100vw; }
+}
+
+/* ============================================================
+   HOME — SINGLE-LINE CATEGORIES (v7)
+   6 Popular Job Categories in one row. On desktop/tablet it's a
+   fixed 6-column grid; on narrow screens it becomes a horizontally
+   scrollable single row (snap-scrolling) instead of wrapping, so
+   it always reads as "one line".
+   ============================================================ */
+.categories-grid-line {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .categories-grid-line {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    gap: 14px;
+    padding-bottom: 10px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .categories-grid-line .category-card {
+    flex: 0 0 150px;
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 480px) {
+  .categories-grid-line .category-card {
+    flex-basis: 132px;
+  }
+}
+
+/* ============================================================
+   HOME — 3x2 RECENT LISTINGS GRID (v7)
+   6 Recently Posted Requirements, fixed 3-across so exactly two
+   rows of three. Narrows gracefully on smaller screens.
+   ============================================================ */
+.grid-home-recent {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .grid-home-recent {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .grid-home-recent {
+    grid-template-columns: 1fr;
+  }
 }
