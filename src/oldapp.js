@@ -1,26 +1,11 @@
 /* ==========================================================
-   Rojgar AREA — Frontend (Enhanced v8)
+   Rojgar AREA — Frontend (Enhanced v7)
    Plain React 18 + Babel-standalone (no build step).
    Backend: Google Apps Script Web App (Code.gs)
    Images:  Cloudinary unsigned upload
    Map:     Leaflet + OpenStreetMap tiles (no API key needed)
 
-   NEW IN THIS VERSION (v8):
-   - "📥 Download App" button added to the navbar (desktop + the
-     mobile hamburger dropdown, since it lives inside the shared
-     nav-menu-wrapper) and to the footer's Quick Links column.
-     Both open CONFIG.APP_DOWNLOAD_URL in a new tab. The URL below
-     is a direct-download link built from the Google Drive file you
-     shared (drive.google.com/file/d/13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2/view):
-       https://drive.google.com/uc?export=download&id=13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2
-     NOTE: this only works as a direct download if the Drive file's
-     sharing setting is "Anyone with the link". If you ever swap the
-     file, just update CONFIG.APP_DOWNLOAD_URL — nothing else needs
-     to change. For very large files Google sometimes shows a
-     "can't scan for viruses" confirmation page instead of an
-     instant download — that's a Drive limitation, not a bug here.
-
-   NEW IN v7:
+   NEW IN THIS VERSION (v7):
    - Real URL routing via the browser History API — no more router
      library, but the address bar now actually reflects the page:
        /                 -> Home
@@ -158,12 +143,7 @@
        // account, which is why uploads fail with "Unknown API key".
        cloudName: 'dm9gg8yss',
        uploadPreset: 'images'
-     },
-     // "📥 Download App" button (navbar + footer) opens this URL in a new
-     // tab. Built from your Google Drive share link — swap the id below
-     // if you ever replace the file. Requires the Drive file's sharing
-     // to be set to "Anyone with the link" to download directly.
-     APP_DOWNLOAD_URL: 'https://drive.google.com/uc?export=download&id=13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2'
+     }
    };
    
    const WORKER_CATEGORIES = [
@@ -244,8 +224,7 @@
        report: '🚩 Report this advertisement', reviews: 'Reviews', writeReview: 'Write a review',
        verified: 'Verified', workersNearYou: 'Workers near you', availableNow: 'Available now',
        viewProfile: 'View profile', myProfile: 'My Profile', referral: 'Your referral code',
-       postAJob: 'Post a worker requirement', salaryBenchmark: 'Typical salary for this category',
-       downloadApp: '📥 Download App'
+       postAJob: 'Post a worker requirement', salaryBenchmark: 'Typical salary for this category'
      },
      hi: {
        home: 'होम', browseJobs: 'नौकरियां देखें', postRequirement: 'ज़रूरत पोस्ट करें',
@@ -263,8 +242,7 @@
        report: '🚩 रिपोर्ट करें', reviews: 'समीक्षाएं', writeReview: 'समीक्षा लिखें',
        verified: 'सत्यापित', workersNearYou: 'आपके पास के कामगार', availableNow: 'अभी उपलब्ध',
        viewProfile: 'प्रोफ़ाइल देखें', myProfile: 'मेरी प्रोफ़ाइल', referral: 'आपका रेफरल कोड',
-       postAJob: 'कामगार की जरूरत पोस्ट करें', salaryBenchmark: 'इस श्रेणी के लिए औसत वेतन',
-       downloadApp: '📥 ऐप डाउनलोड करें'
+       postAJob: 'कामगार की जरूरत पोस्ट करें', salaryBenchmark: 'इस श्रेणी के लिए औसत वेतन'
      },
      pa: {
        home: 'ਹੋਮ', browseJobs: 'ਨੌਕਰੀਆਂ ਵੇਖੋ', postRequirement: 'ਲੋੜ ਪੋਸਟ ਕਰੋ',
@@ -282,8 +260,7 @@
        report: '🚩 ਰਿਪੋਰਟ ਕਰੋ', reviews: 'ਸਮੀਖਿਆਵਾਂ', writeReview: 'ਸਮੀਖਿਆ ਲਿਖੋ',
        verified: 'ਪ੍ਰਮਾਣਿਤ', workersNearYou: 'ਤੁਹਾਡੇ ਨੇੜੇ ਦੇ ਕਾਮੇ', availableNow: 'ਹੁਣ ਉਪਲਬਧ',
        viewProfile: 'ਪ੍ਰੋਫਾਈਲ ਵੇਖੋ', myProfile: 'ਮੇਰੀ ਪ੍ਰੋਫਾਈਲ', referral: 'ਤੁਹਾਡਾ ਰੈਫਰਲ ਕੋਡ',
-       postAJob: 'ਕਾਮੇ ਦੀ ਲੋੜ ਪੋਸਟ ਕਰੋ', salaryBenchmark: 'ਇਸ ਸ਼੍ਰੇਣੀ ਲਈ ਔਸਤ ਤਨਖਾਹ',
-       downloadApp: '📥 ਐਪ ਡਾਊਨਲੋਡ ਕਰੋ'
+       postAJob: 'ਕਾਮੇ ਦੀ ਲੋੜ ਪੋਸਟ ਕਰੋ', salaryBenchmark: 'ਇਸ ਸ਼੍ਰੇਣੀ ਲਈ ਔਸਤ ਤਨਖਾਹ'
      }
    };
    
@@ -808,6 +785,8 @@
        </div>
      );
    }
+
+   
    
    // ------------------------------------------------------------
    // MAP VIEW
@@ -1252,30 +1231,12 @@
           <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
         </div>
         <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
-        <a
-          href={CONFIG.APP_DOWNLOAD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-primary btn-sm footer-download-btn"
-          style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}
-        >
-          {t('downloadApp')}
-        </a>
       </div>
       <div className="footer-col">
         <h4>Quick Links</h4>
         <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
         <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
         <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
-        <a
-          href={CONFIG.APP_DOWNLOAD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="footer-link"
-          style={{ textDecoration: 'none', display: 'block' }}
-        >
-          {t('downloadApp')}
-        </a>
         <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
       </div>
       <div className="footer-col">
@@ -1373,20 +1334,6 @@
             </div>
   
             <div className="nav-user">
-              {/* 📥 Download App — opens CONFIG.APP_DOWNLOAD_URL (your Google
-                  Drive link) in a new tab. Sits in the same shared nav-user
-                  row as login/signup, so it shows on desktop and inside the
-                  mobile hamburger dropdown. */}
-              <a
-                href={CONFIG.APP_DOWNLOAD_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-outline-light btn-sm download-app-btn"
-                onClick={closeMenu}
-                style={{ textDecoration: 'none' }}
-              >
-                {t('downloadApp')}
-              </a>
               <LanguageSwitcher />
               {user ? (
                 <>
@@ -1548,15 +1495,6 @@
                <button className="btn btn-outline-light" onClick={runNearbySearch}>
                  {t('findJobsNearMe')}
                </button>
-               <a
-                 href={CONFIG.APP_DOWNLOAD_URL}
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 className="btn btn-primary hero-download-btn"
-                 style={{ textDecoration: 'none' }}
-               >
-                 {t('downloadApp')}
-               </a>
                <span className="hero-stats">
                  <strong className="counter-animate">{allAds ? activeCount : '—'}</strong> active requirements · <strong>{allAds?.length || 0}</strong> total listings
                </span>
