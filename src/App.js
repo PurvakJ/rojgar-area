@@ -785,6 +785,50 @@
        </div>
      );
    }
+
+   // ==============================================================
+// DOWNLOAD APP MODAL
+// ==============================================================
+function DownloadAppModal({ onClose }) {
+  const APP_DOWNLOAD_URL = 'https://drive.google.com/file/d/13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2/view?usp=sharing';
+  
+  return (
+    <div className="download-modal-overlay" onClick={onClose}>
+      <div className="download-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="download-modal-close" onClick={onClose}>✕</button>
+        <span className="download-modal-icon">📱</span>
+        <h2>Download Rojgar AREA App</h2>
+        <p>
+          Get the official Rojgar AREA app for Android. Find jobs near you, 
+          post requirements, and connect with local businesses instantly.
+        </p>
+        
+        <a
+          href={APP_DOWNLOAD_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="app-download-btn"
+        >
+          <svg viewBox="0 0 24 24" width="28" height="28">
+            <path d="M17.523 15.3414C17.2099 16.1442 16.778 16.8968 16.2455 17.5758C15.5826 18.422 15.0583 18.9949 14.2184 19.8139C13.3671 20.6434 12.5997 20.9996 11.7302 21C10.8831 21.0002 10.4314 20.6712 9.62318 20.2065C8.53735 19.5894 7.44918 18.8758 5.97896 17.4908C3.47302 15.1106 1.34284 11.9465 1.04254 8.35964C1.01411 7.99966 1 7.63404 1 7.26314C1 3.73363 3.43232 1 6.54837 1C7.26672 1 7.95968 1.24142 8.49941 1.68357C9.05024 2.13447 9.43498 2.77521 9.72722 3.58855L10.6434 6.0733C10.9674 6.96874 11.1285 7.41945 11.1014 7.83411C11.0784 8.18577 10.9366 8.51739 10.7047 8.77107C10.4392 9.06035 10.0399 9.26699 9.24108 9.67717L8.42922 10.0958C8.95966 10.4637 9.51752 10.8167 10.1056 11.1524C10.7824 11.5429 11.4771 11.9092 12.1766 12.2508C12.8769 12.5929 13.4668 12.8442 13.9688 12.9873C14.3903 13.1062 14.8017 13.1656 15.1859 13.1525C15.617 13.1375 16.071 13.0375 16.5031 12.8523L18.2369 12.1123C19.1352 11.7265 19.5846 11.5336 19.9739 11.5295C20.3289 11.5258 20.6691 11.6549 20.9253 11.886C21.2091 12.1416 21.3672 12.5197 21.6837 13.2775L22.2917 14.7861C22.6748 15.7183 22.8668 16.1845 22.8381 16.6364C22.8111 17.0588 22.638 17.4546 22.3519 17.7527C22.0305 18.0867 21.5658 18.2183 20.6369 18.4812C19.2365 18.8709 17.2998 18.9163 16.806 18.2814C16.7228 18.1737 16.6451 18.0018 16.4935 17.6603L15.7483 16.0088C15.6127 15.6859 15.5431 15.5223 15.5224 15.3644C15.5047 15.2296 15.5165 15.0923 15.5561 14.9628C15.6005 14.8181 15.6895 14.6954 15.8268 14.4996L17.523 15.3414Z" />
+            <path d="M14.5 3.5C15.5 3.5 16.5 4.5 16.5 5.5C16.5 6.5 15.5 7.5 14.5 7.5C13.5 7.5 12.5 6.5 12.5 5.5C12.5 4.5 13.5 3.5 14.5 3.5Z" />
+            <path d="M18.5 6.5C19.5 6.5 20.5 7.5 20.5 8.5C20.5 9.5 19.5 10.5 18.5 10.5C17.5 10.5 16.5 9.5 16.5 8.5C16.5 7.5 17.5 6.5 18.5 6.5Z" />
+          </svg>
+          <span className="btn-text">
+            Download App
+            <small>Android APK · Free</small>
+          </span>
+        </a>
+        
+        <p className="alternative-text">
+          Or visit: <a href={APP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer">
+            drive.google.com/rojgar-area-app
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
    
    // ------------------------------------------------------------
    // MAP VIEW
@@ -1207,63 +1251,73 @@
     );
   }
    
-   function Footer({ navigate }) {
-     const t = useT();
-     const [modal, setModal] = useState(null); // 'privacy' | 'terms' | 'cookies' | 'contact' | null
-     const handleNav = (path, params) => (e) => {
-       e.preventDefault();
-       navigate(path, params || {});
-     };
-   
-     return (
-<div className="footer">
-  <div className="container">
-    <div className="footer-grid">
-      <div className="footer-col">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-          <img 
-            src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png" 
-            alt="Rojgar AREA Logo" 
-            style={{ height: '40px', width: 'auto' }}
-          />
-          <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
+  function Footer({ navigate }) {
+    const t = useT();
+    const [modal, setModal] = useState(null); // 'privacy' | 'terms' | 'cookies' | 'contact' | null
+    const [downloadModalOpen, setDownloadModalOpen] = useState(false);
+    
+    const handleNav = (path, params) => (e) => {
+      e.preventDefault();
+      navigate(path, params || {});
+    };
+  
+    return (
+      <>
+        <div className="footer">
+          <div className="container">
+            <div className="footer-grid">
+              <div className="footer-col">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                  <img 
+                    src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png" 
+                    alt="Rojgar AREA Logo" 
+                    style={{ height: '40px', width: 'auto' }}
+                  />
+                  <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
+                </div>
+                <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
+              </div>
+              <div className="footer-col">
+                <h4>Quick Links</h4>
+                <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
+                <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
+                <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
+                <button className="footer-download-btn" onClick={() => setDownloadModalOpen(true)}>
+                  Download App
+                </button>
+                <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
+              </div>
+              <div className="footer-col">
+                <h4>Popular Searches</h4>
+                <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
+                <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
+                <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
+                <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
+              </div>
+              <div className="footer-col">
+                <h4>Legal</h4>
+                <button className="footer-link" onClick={() => setModal('privacy')}>Privacy Policy</button>
+                <button className="footer-link" onClick={() => setModal('terms')}>Terms of Service</button>
+                <button className="footer-link" onClick={() => setModal('cookies')}>Cookie Policy</button>
+                <button className="footer-link" onClick={() => setModal('contact')}>Contact Developer</button>
+              </div>
+            </div>
+            <div className="footer-bottom">
+              <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
+            </div>
+          </div>
+  
+          {(modal === 'privacy' || modal === 'terms' || modal === 'cookies') && (
+            <LegalModal contentKey={modal} onClose={() => setModal(null)} />
+          )}
+          {modal === 'contact' && <ContactDeveloperModal onClose={() => setModal(null)} />}
         </div>
-        <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
-      </div>
-      <div className="footer-col">
-        <h4>Quick Links</h4>
-        <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
-        <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
-        <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
-        <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
-      </div>
-      <div className="footer-col">
-        <h4>Popular Searches</h4>
-        <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
-      </div>
-      <div className="footer-col">
-        <h4>Legal</h4>
-        <button className="footer-link" onClick={() => setModal('privacy')}>Privacy Policy</button>
-        <button className="footer-link" onClick={() => setModal('terms')}>Terms of Service</button>
-        <button className="footer-link" onClick={() => setModal('cookies')}>Cookie Policy</button>
-        <button className="footer-link" onClick={() => setModal('contact')}>Contact Developer</button>
-      </div>
-    </div>
-    <div className="footer-bottom">
-      <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
-    </div>
-  </div>
-
-  {(modal === 'privacy' || modal === 'terms' || modal === 'cookies') && (
-    <LegalModal contentKey={modal} onClose={() => setModal(null)} />
-  )}
-  {modal === 'contact' && <ContactDeveloperModal onClose={() => setModal(null)} />}
-</div>
-     );
-   }
+  
+        {/* Download App Modal */}
+        {downloadModalOpen && <DownloadAppModal onClose={() => setDownloadModalOpen(false)} />}
+      </>
+    );
+  }
    
    // ==============================================================
    // NAVBAR
@@ -1287,6 +1341,7 @@
     const t = useT();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   
     useEffect(() => {
       const handleScroll = () => {
@@ -1300,54 +1355,73 @@
     const closeMenu = () => setMobileMenuOpen(false);
   
     return (
-      <div className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
-        <div className="container navbar-inner">
-          <div className="brand" onClick={() => { navigate('home'); closeMenu(); }}>
-            <img
-              src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
-              alt="Rojgar AREA Logo"
-              className="brand-logo"
-              style={{ height: '40px', width: 'auto' }}
-            />
-            <div className="brand-text">Rojgar<span>AREA</span></div>
-          </div>
-  
-          <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
-            {mobileMenuOpen ? '✕' : '☰'}
-          </button>
-  
-          {/* Single wrapper — on desktop it's invisible to layout (display:contents),
-              on mobile it becomes the one dropdown panel, so nav-links always
-              render above nav-user in the DOM and on screen. */}
-          <div className={`nav-menu-wrapper ${mobileMenuOpen ? 'open' : ''}`}>
-            <div className="nav-links">
-              <button className={`nav-link ${route.page === 'home' ? 'active' : ''}`} onClick={() => { navigate('home'); closeMenu(); }}>{t('home')}</button>
-              <button className={`nav-link ${route.page === 'browse' ? 'active' : ''}`} onClick={() => { navigate('browse'); closeMenu(); }}>{t('browseJobs')}</button>
-              <button className={`nav-link ${route.page === 'workers' ? 'active' : ''}`} onClick={() => { navigate('workers'); closeMenu(); }}>{t('findWorkers')}</button>
-              {showPostLink && (
-                <button className={`nav-link ${route.page === 'post' ? 'active' : ''}`} onClick={() => { navigate('post'); closeMenu(); }}>{t('postRequirement')}</button>
-              )}
-              {user && <button className={`nav-link ${route.page === 'dashboard' ? 'active' : ''}`} onClick={() => { navigate('dashboard'); closeMenu(); }}>{t('myDashboard')}</button>}
-              {user && user.role === 'admin' && <button className={`nav-link ${route.page === 'admin' ? 'active' : ''}`} onClick={() => { navigate('admin'); closeMenu(); }}>{t('admin')}</button>}
+      <>
+        <div className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
+          <div className="container navbar-inner">
+            <div className="brand" onClick={() => { navigate('home'); closeMenu(); }}>
+              <img
+                src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
+                alt="Rojgar AREA Logo"
+                className="brand-logo"
+                style={{ height: '40px', width: 'auto' }}
+              />
+              <div className="brand-text">Rojgar<span>AREA</span></div>
             </div>
   
-            <div className="nav-user">
-              <LanguageSwitcher />
-              {user ? (
-                <>
-                  <div className="nav-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
-                  <button className="btn-ghost-light" onClick={logout}>{t('logout')}</button>
-                </>
-              ) : (
-                <>
-                  <button className="btn-ghost-light" onClick={() => { navigate('login'); closeMenu(); }}>{t('login')}</button>
-                  <button className="btn btn-primary btn-sm" onClick={() => { navigate('register'); closeMenu(); }}>{t('signup')}</button>
-                </>
-              )}
+            <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+              {mobileMenuOpen ? '✕' : '☰'}
+            </button>
+  
+            {/* Single wrapper — on desktop it's invisible to layout (display:contents),
+                on mobile it becomes the one dropdown panel, so nav-links always
+                render above nav-user in the DOM and on screen. */}
+            <div className={`nav-menu-wrapper ${mobileMenuOpen ? 'open' : ''}`}>
+              <div className="nav-links">
+                <button className={`nav-link ${route.page === 'home' ? 'active' : ''}`} onClick={() => { navigate('home'); closeMenu(); }}>{t('home')}</button>
+                <button className={`nav-link ${route.page === 'browse' ? 'active' : ''}`} onClick={() => { navigate('browse'); closeMenu(); }}>{t('browseJobs')}</button>
+                <button className={`nav-link ${route.page === 'workers' ? 'active' : ''}`} onClick={() => { navigate('workers'); closeMenu(); }}>{t('findWorkers')}</button>
+                {showPostLink && (
+                  <button className={`nav-link ${route.page === 'post' ? 'active' : ''}`} onClick={() => { navigate('post'); closeMenu(); }}>{t('postRequirement')}</button>
+                )}
+                {user && <button className={`nav-link ${route.page === 'dashboard' ? 'active' : ''}`} onClick={() => { navigate('dashboard'); closeMenu(); }}>{t('myDashboard')}</button>}
+                {user && user.role === 'admin' && <button className={`nav-link ${route.page === 'admin' ? 'active' : ''}`} onClick={() => { navigate('admin'); closeMenu(); }}>{t('admin')}</button>}
+              </div>
+  
+              <div className="nav-user">
+                {/* Download App Button */}
+                <button 
+                  className="nav-download-btn" 
+                  onClick={() => { setDownloadModalOpen(true); closeMenu(); }}
+                  aria-label="Download App"
+                >
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M17.523 15.3414C17.2099 16.1442 16.778 16.8968 16.2455 17.5758C15.5826 18.422 15.0583 18.9949 14.2184 19.8139C13.3671 20.6434 12.5997 20.9996 11.7302 21C10.8831 21.0002 10.4314 20.6712 9.62318 20.2065C8.53735 19.5894 7.44918 18.8758 5.97896 17.4908C3.47302 15.1106 1.34284 11.9465 1.04254 8.35964C1.01411 7.99966 1 7.63404 1 7.26314C1 3.73363 3.43232 1 6.54837 1C7.26672 1 7.95968 1.24142 8.49941 1.68357C9.05024 2.13447 9.43498 2.77521 9.72722 3.58855L10.6434 6.0733C10.9674 6.96874 11.1285 7.41945 11.1014 7.83411C11.0784 8.18577 10.9366 8.51739 10.7047 8.77107C10.4392 9.06035 10.0399 9.26699 9.24108 9.67717L8.42922 10.0958C8.95966 10.4637 9.51752 10.8167 10.1056 11.1524C10.7824 11.5429 11.4771 11.9092 12.1766 12.2508C12.8769 12.5929 13.4668 12.8442 13.9688 12.9873C14.3903 13.1062 14.8017 13.1656 15.1859 13.1525C15.617 13.1375 16.071 13.0375 16.5031 12.8523L18.2369 12.1123C19.1352 11.7265 19.5846 11.5336 19.9739 11.5295C20.3289 11.5258 20.6691 11.6549 20.9253 11.886C21.2091 12.1416 21.3672 12.5197 21.6837 13.2775L22.2917 14.7861C22.6748 15.7183 22.8668 16.1845 22.8381 16.6364C22.8111 17.0588 22.638 17.4546 22.3519 17.7527C22.0305 18.0867 21.5658 18.2183 20.6369 18.4812C19.2365 18.8709 17.2998 18.9163 16.806 18.2814C16.7228 18.1737 16.6451 18.0018 16.4935 17.6603L15.7483 16.0088C15.6127 15.6859 15.5431 15.5223 15.5224 15.3644C15.5047 15.2296 15.5165 15.0923 15.5561 14.9628C15.6005 14.8181 15.6895 14.6954 15.8268 14.4996L17.523 15.3414Z" />
+                    <path d="M14.5 3.5C15.5 3.5 16.5 4.5 16.5 5.5C16.5 6.5 15.5 7.5 14.5 7.5C13.5 7.5 12.5 6.5 12.5 5.5C12.5 4.5 13.5 3.5 14.5 3.5Z" />
+                    <path d="M18.5 6.5C19.5 6.5 20.5 7.5 20.5 8.5C20.5 9.5 19.5 10.5 18.5 10.5C17.5 10.5 16.5 9.5 16.5 8.5C16.5 7.5 17.5 6.5 18.5 6.5Z" />
+                  </svg>
+                  Download App
+                </button>
+  
+                <LanguageSwitcher />
+                {user ? (
+                  <>
+                    <div className="nav-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
+                    <button className="btn-ghost-light" onClick={logout}>{t('logout')}</button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn-ghost-light" onClick={() => { navigate('login'); closeMenu(); }}>{t('login')}</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => { navigate('register'); closeMenu(); }}>{t('signup')}</button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+  
+        {/* Download App Modal */}
+        {downloadModalOpen && <DownloadAppModal onClose={() => setDownloadModalOpen(false)} />}
+      </>
     );
   }
    

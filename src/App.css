@@ -2840,3 +2840,244 @@
   transform: translateX(-50%);
 }
 
+/* ============================================================
+   DOWNLOAD APP BUTTON & MODAL
+   ============================================================ */
+
+/* Download App Button - Navbar */
+.nav-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+  font-family: var(--font);
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  text-decoration: none;
+  box-shadow: 0 2px 12px rgba(240, 162, 2, 0.3);
+}
+
+.nav-download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(240, 162, 2, 0.45);
+  background: #e09600;
+}
+
+.nav-download-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+/* Download App Modal */
+.download-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 30, 25, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  animation: modalFadeIn 0.3s ease;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.download-modal {
+  background: var(--paper-card);
+  border-radius: var(--radius);
+  max-width: 480px;
+  width: 100%;
+  padding: 36px 32px 32px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  animation: modalSlideIn 0.35s ease;
+  position: relative;
+  text-align: center;
+}
+
+.download-modal::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: var(--brand-bar);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: scale(0.92) translateY(20px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.download-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-mute);
+  transition: var(--transition);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.download-modal-close:hover {
+  color: var(--text);
+  background: var(--border);
+}
+
+.download-modal-icon {
+  font-size: 52px;
+  margin-bottom: 8px;
+  display: block;
+  animation: float 3s ease-in-out infinite;
+}
+
+.download-modal h2 {
+  font-size: 26px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.download-modal p {
+  color: var(--text-mute);
+  font-size: 15px;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.download-modal .app-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 32px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: var(--transition);
+  text-decoration: none;
+  width: 100%;
+  justify-content: center;
+}
+
+.download-modal .app-download-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(14, 110, 92, 0.35);
+}
+
+.download-modal .app-download-btn svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+}
+
+.download-modal .app-download-btn .btn-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+
+.download-modal .app-download-btn .btn-text small {
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.download-modal .alternative-text {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-mute);
+}
+
+.download-modal .alternative-text a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.download-modal .alternative-text a:hover {
+  text-decoration: underline;
+}
+
+/* Download button in footer */
+.footer-download-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.78);
+  display: block;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 13.5px;
+  transition: var(--transition);
+  text-align: left;
+  font-family: var(--font);
+  font-weight: 400;
+}
+
+.footer-download-btn:hover {
+  color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .download-modal {
+    padding: 28px 20px 24px;
+    margin: 16px;
+  }
+  
+  .download-modal h2 {
+    font-size: 22px;
+  }
+  
+  .download-modal .app-download-btn {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+  
+  .download-modal .app-download-btn svg {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .download-modal {
+    padding: 24px 16px 20px;
+  }
+  
+  .download-modal h2 {
+    font-size: 19px;
+  }
+  
+  .download-modal p {
+    font-size: 13.5px;
+  }
+  
+  .download-modal-icon {
+    font-size: 40px;
+  }
+}
