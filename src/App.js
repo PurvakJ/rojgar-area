@@ -1799,42 +1799,60 @@
      const categoryOptions = useMemo(() => buildCategoryOptions(allAds || []), [allAds]);
    
      return (
-       <div className="container">
-         <div className="section-head" style={{ marginTop: 30 }}>
-           <h2>All job requirements {results && <span className="count-pill">{results.length}</span>}</h2>
-           <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
-             ☰ Filters
-           </button>
-         </div>
-   
-         <LocationBanner compact />
-   
-         <div className="browse-results-full">
-           {allAds === null && !error && <Spinner label="Loading advertisements..." />}
-           {error && <ErrorState message={error} onRetry={load} />}
-           {results && results.length === 0 && (
-             <EmptyState icon="🗂️" title="No advertisements found" message="Try clearing some filters or widening your search radius." />
-           )}
-           {results && results.length > 0 && (
-             <div className="grid">
-               {results.map((ad, i) => (
-                 <AnimatedCard key={ad.adId} delay={i % 10 * 50}>
-                   <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
-                 </AnimatedCard>
-               ))}
-             </div>
-           )}
-         </div>
-   
-         <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
-           <FilterPanel
-             filters={filters} setFilters={setFilters}
-             categoryOptions={categoryOptions}
-             geoStatus={geo.status} onRequestLocation={geo.request}
-             resultCount={results ? results.length : undefined}
-           />
-         </FilterDrawer>
-       </div>
+<div className="container">
+  <div className="section-head" style={{ marginTop: 30 }}>
+    <h2>All job requirements {results && <span className="count-pill">{results.length}</span>}</h2>
+    <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
+      ☰ Filters
+    </button>
+  </div>
+
+  <LocationBanner compact />
+
+  <div className="browse-layout">
+    {/* Desktop Filters - always visible on desktop */}
+    <div className="filter-sidebar-desktop">
+      <FilterPanel
+        filters={filters}
+        setFilters={setFilters}
+        categoryOptions={categoryOptions}
+        geoStatus={geo.status}
+        onRequestLocation={geo.request}
+        resultCount={results ? results.length : undefined}
+      />
+    </div>
+
+    {/* Results */}
+    <div className="browse-results-full">
+      {allAds === null && !error && <Spinner label="Loading advertisements..." />}
+      {error && <ErrorState message={error} onRetry={load} />}
+      {results && results.length === 0 && (
+        <EmptyState icon="🗂️" title="No advertisements found" message="Try clearing some filters or widening your search radius." />
+      )}
+      {results && results.length > 0 && (
+        <div className="grid">
+          {results.map((ad, i) => (
+            <AnimatedCard key={ad.adId} delay={i % 10 * 50}>
+              <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+            </AnimatedCard>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* Mobile Filter Drawer */}
+  <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+    <FilterPanel
+      filters={filters}
+      setFilters={setFilters}
+      categoryOptions={categoryOptions}
+      geoStatus={geo.status}
+      onRequestLocation={geo.request}
+      resultCount={results ? results.length : undefined}
+    />
+  </FilterDrawer>
+</div>
      );
    }
    
@@ -2591,77 +2609,96 @@
    }
    
    function WorkersBrowsePage({ navigate }) {
-     const t = useT();
-     const geo = useGeo();
-     const [rawWorkers, setRawWorkers] = useState(null);
-     const [error, setError] = useState(null);
-     const [filters, setFilters] = useState({ ...WORKER_EMPTY_FILTERS });
-     const [filtersOpen, setFiltersOpen] = useState(false);
-   
-     const load = useCallback(() => {
-       setRawWorkers(null); setError(null);
-       apiCall('searchWorkers', { search: filters.search, category: filters.category, availableOnly: filters.availableOnly })
-         .then((d) => setRawWorkers(d.workers))
-         .catch((e) => setError(e.message));
-     }, [filters.search, filters.category, filters.availableOnly]);
-   
-     useEffect(() => {
-       const timer = setTimeout(load, 250);
-       return () => clearTimeout(timer);
-     }, [load]);
-   
-     // Radius/sort/distance are computed client-side (mirrors filterAndSortAds)
-     // so this actually reflects the worker's saved profile location.
-     const workers = useMemo(() => {
-       if (!rawWorkers) return null;
-       return filterAndSortWorkers(rawWorkers, filters, geo.coords);
-     }, [rawWorkers, filters, geo.coords]);
-   
-     const withLocationCount = useMemo(
-       () => (rawWorkers || []).filter((w) => w.locationLat != null && w.locationLng != null).length,
-       [rawWorkers]
-     );
-   
-     return (
-       <div className="container">
-         <div className="section-head" style={{ marginTop: 30 }}>
-           <h2>{t('workersNearYou')} {workers && <span className="count-pill">{workers.length}</span>}</h2>
-           <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
-             ☰ Filters
-           </button>
-         </div>
-   
-         <LocationBanner compact />
-   
-         <div className="browse-results-full">
-           {rawWorkers === null && !error && <Spinner label="Loading workers..." />}
-           {error && <ErrorState message={error} onRetry={load} />}
-           {workers && workers.length === 0 && (
-             <EmptyState icon="🧰" title="No worker profiles found" message="Workers who complete their profile will show up here." />
-           )}
-           {workers && workers.length > 0 && (
-             <div className="grid">
-               {workers.map((w, i) => (
-                 <AnimatedCard key={w.userId} delay={i % 10 * 50}>
-                   <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} />
-                 </AnimatedCard>
-               ))}
-             </div>
-           )}
-         </div>
-   
-         <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
-           <WorkerFilterPanel
-             filters={filters} setFilters={setFilters}
-             geoStatus={geo.status} onRequestLocation={geo.request}
-             resultCount={workers ? workers.length : undefined}
-             totalCount={rawWorkers ? rawWorkers.length : undefined}
-             withLocationCount={rawWorkers ? withLocationCount : undefined}
-           />
-         </FilterDrawer>
-       </div>
-     );
-   }
+    const t = useT();
+    const geo = useGeo();
+    const [rawWorkers, setRawWorkers] = useState(null);
+    const [error, setError] = useState(null);
+    const [filters, setFilters] = useState({ ...WORKER_EMPTY_FILTERS });
+    const [filtersOpen, setFiltersOpen] = useState(false);
+  
+    const load = useCallback(() => {
+      setRawWorkers(null); setError(null);
+      apiCall('searchWorkers', { search: filters.search, category: filters.category, availableOnly: filters.availableOnly })
+        .then((d) => setRawWorkers(d.workers))
+        .catch((e) => setError(e.message));
+    }, [filters.search, filters.category, filters.availableOnly]);
+  
+    useEffect(() => {
+      const timer = setTimeout(load, 250);
+      return () => clearTimeout(timer);
+    }, [load]);
+  
+    // Radius/sort/distance are computed client-side (mirrors filterAndSortAds)
+    // so this actually reflects the worker's saved profile location.
+    const workers = useMemo(() => {
+      if (!rawWorkers) return null;
+      return filterAndSortWorkers(rawWorkers, filters, geo.coords);
+    }, [rawWorkers, filters, geo.coords]);
+  
+    const withLocationCount = useMemo(
+      () => (rawWorkers || []).filter((w) => w.locationLat != null && w.locationLng != null).length,
+      [rawWorkers]
+    );
+  
+    return (
+      <div className="container">
+        <div className="section-head" style={{ marginTop: 30 }}>
+          <h2>{t('workersNearYou')} {workers && <span className="count-pill">{workers.length}</span>}</h2>
+          <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
+            ☰ Filters
+          </button>
+        </div>
+  
+        <LocationBanner compact />
+  
+        <div className="browse-layout">
+          {/* Desktop Filters - always visible on desktop */}
+          <div className="filter-sidebar-desktop">
+            <WorkerFilterPanel
+              filters={filters}
+              setFilters={setFilters}
+              geoStatus={geo.status}
+              onRequestLocation={geo.request}
+              resultCount={workers ? workers.length : undefined}
+              totalCount={rawWorkers ? rawWorkers.length : undefined}
+              withLocationCount={rawWorkers ? withLocationCount : undefined}
+            />
+          </div>
+  
+          {/* Results */}
+          <div className="browse-results-full">
+            {rawWorkers === null && !error && <Spinner label="Loading workers..." />}
+            {error && <ErrorState message={error} onRetry={load} />}
+            {workers && workers.length === 0 && (
+              <EmptyState icon="🧰" title="No worker profiles found" message="Workers who complete their profile will show up here." />
+            )}
+            {workers && workers.length > 0 && (
+              <div className="grid">
+                {workers.map((w, i) => (
+                  <AnimatedCard key={w.userId} delay={i % 10 * 50}>
+                    <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} />
+                  </AnimatedCard>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+  
+        {/* Mobile Filter Drawer */}
+        <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+          <WorkerFilterPanel
+            filters={filters}
+            setFilters={setFilters}
+            geoStatus={geo.status}
+            onRequestLocation={geo.request}
+            resultCount={workers ? workers.length : undefined}
+            totalCount={rawWorkers ? rawWorkers.length : undefined}
+            withLocationCount={rawWorkers ? withLocationCount : undefined}
+          />
+        </FilterDrawer>
+      </div>
+    );
+  }
    
    function WorkerProfileViewPage({ userId, navigate }) {
      const { user } = useAuth();
@@ -2991,55 +3028,67 @@
    // USER DASHBOARD
    // ==============================================================
    function UserDashboardPage({ navigate }) {
-     const { user } = useAuth();
-     // Worker-only accounts can't post ads, so "My posted ads" would
-     // otherwise be the default while being invisible to them — default
-     // to "Saved advertisements" instead. Business/both/admin still
-     // default to "My posted ads".
-     const [tab, setTab] = useState(() => (canPostAds(user) ? 'myads' : 'saved'));
-     const [menuOpen, setMenuOpen] = useState(false);
-   
-     const tabDefs = [
-       ...(canPostAds(user) ? [{ id: 'myads', label: 'My posted ads' }] : []),
-       { id: 'saved', label: 'Saved advertisements' },
-       { id: 'reports', label: 'My reports' },
-       { id: 'profile', label: 'My Profile' },
-     ];
-     const currentLabel = (tabDefs.find((tb) => tb.id === tab) || {}).label || 'My dashboard';
-   
-     return (
-       <div className="container form-page" style={{ maxWidth: 1000 }}>
-         <h1>My dashboard</h1>
-         <p style={{ color: 'var(--text-mute)', marginBottom: 20 }}>Welcome back, {user.name}.</p>
-   
-         <div className="section-head" style={{ marginTop: 0, marginBottom: 18 }}>
-           <h2 style={{ fontSize: 20 }}>{currentLabel}</h2>
-           <button className="btn btn-outline filters-toggle-btn" onClick={() => setMenuOpen(true)}>
-             ☰ Menu
-           </button>
-         </div>
-   
-         {tab === 'myads' && canPostAds(user) && <MyAdsTab navigate={navigate} />}
-         {tab === 'saved' && <SavedAdsTab navigate={navigate} />}
-         {tab === 'reports' && <MyReportsTab />}
-         {tab === 'profile' && <MyProfileTab />}
-   
-         <FilterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} title="Dashboard menu">
-           <div className="drawer-tab-list">
-             {tabDefs.map((tb) => (
-               <button
-                 key={tb.id}
-                 className={`drawer-tab-btn ${tab === tb.id ? 'active' : ''}`}
-                 onClick={() => { setTab(tb.id); setMenuOpen(false); }}
-               >
-                 {tb.label}
-               </button>
-             ))}
-           </div>
-         </FilterDrawer>
-       </div>
-     );
-   }
+    const { user } = useAuth();
+    const [tab, setTab] = useState(() => (canPostAds(user) ? 'myads' : 'saved'));
+    const [menuOpen, setMenuOpen] = useState(false);
+  
+    const tabDefs = [
+      ...(canPostAds(user) ? [{ id: 'myads', label: 'My posted ads' }] : []),
+      { id: 'saved', label: 'Saved advertisements' },
+      { id: 'reports', label: 'My reports' },
+      { id: 'profile', label: 'My Profile' },
+    ];
+    const currentLabel = (tabDefs.find((tb) => tb.id === tab) || {}).label || 'My dashboard';
+  
+    return (
+      <div className="container form-page" style={{ maxWidth: 1000 }}>
+        <h1>My dashboard</h1>
+        <p style={{ color: 'var(--text-mute)', marginBottom: 20 }}>Welcome back, {user.name}.</p>
+  
+        {/* Desktop Tabs */}
+        <div className="dashboard-tabs-desktop">
+          {tabDefs.map((tb) => (
+            <button
+              key={tb.id}
+              className={`dashboard-tab-btn ${tab === tb.id ? 'active' : ''}`}
+              onClick={() => setTab(tb.id)}
+            >
+              {tb.label}
+            </button>
+          ))}
+        </div>
+  
+        {/* Mobile Menu Button */}
+        <div className="section-head" style={{ marginTop: 0, marginBottom: 18 }}>
+          <h2 style={{ fontSize: 20 }}>{currentLabel}</h2>
+          <button className="btn btn-outline dashboard-menu-toggle" onClick={() => setMenuOpen(true)}>
+            ☰ Menu
+          </button>
+        </div>
+  
+        {/* Tab Content */}
+        {tab === 'myads' && canPostAds(user) && <MyAdsTab navigate={navigate} />}
+        {tab === 'saved' && <SavedAdsTab navigate={navigate} />}
+        {tab === 'reports' && <MyReportsTab />}
+        {tab === 'profile' && <MyProfileTab />}
+  
+        {/* Mobile Menu Drawer */}
+        <FilterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} title="Dashboard menu" side="right">
+          <div className="drawer-tab-list">
+            {tabDefs.map((tb) => (
+              <button
+                key={tb.id}
+                className={`drawer-tab-btn ${tab === tb.id ? 'active' : ''}`}
+                onClick={() => { setTab(tb.id); setMenuOpen(false); }}
+              >
+                {tb.label}
+              </button>
+            ))}
+          </div>
+        </FilterDrawer>
+      </div>
+    );
+  }
    
    function SavedAdsTab({ navigate }) {
      const { user } = useAuth();

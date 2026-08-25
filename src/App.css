@@ -2265,3 +2265,447 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   HOME — SINGLE-LINE CATEGORIES (v7)
+   6 Popular Job Categories in one row. On desktop/tablet it's a
+   fixed 6-column grid; on narrow screens it becomes a horizontally
+   scrollable single row (snap-scrolling) instead of wrapping, so
+   it always reads as "one line".
+   ============================================================ */
+   .categories-grid-line {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+  }
+  
+  @media (max-width: 900px) {
+    .categories-grid-line {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      overflow-x: visible;
+      padding-bottom: 10px;
+      scroll-snap-type: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .categories-grid-line .category-card {
+      flex: none;
+      scroll-snap-align: none;
+    }
+  }
+  
+  @media (max-width: 600px) {
+    .categories-grid-line {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .categories-grid-line {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .categories-grid-line .category-card {
+      flex-basis: auto;
+    }
+  }
+
+  /* ============================================================
+   BROWSE / WORKERS LAYOUT — Desktop: Filters on left, content on right
+   ============================================================ */
+.browse-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 28px;
+  margin: 20px 0 40px;
+}
+
+/* Desktop filter sidebar - always visible */
+.filter-sidebar-desktop {
+  position: sticky;
+  top: 88px;
+  align-self: start;
+  background: var(--bg-card);
+  padding: 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.filter-sidebar-desktop .filter-sidebar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.filter-sidebar-desktop .filter-sidebar-head h3 {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.filter-sidebar-desktop .filter-result-count {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-mute);
+  font-family: var(--font-mono);
+}
+
+/* Hide filter toggle button on desktop */
+.filters-toggle-btn {
+  display: none;
+}
+
+/* Browse results - full width when filters hidden */
+.browse-results-full {
+  margin: 20px 0 40px;
+}
+
+/* ============================================================
+   DASHBOARD — Desktop: Menu tabs at top
+   ============================================================ */
+.dashboard-tabs-desktop {
+  display: flex;
+  gap: 6px;
+  margin: 16px 0 24px;
+  flex-wrap: wrap;
+  background: var(--border);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.dashboard-tab-btn {
+  padding: 10px 22px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: var(--transition);
+  color: var(--text-mute);
+  font-family: var(--font);
+  flex: 0 1 auto;
+}
+
+.dashboard-tab-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.dashboard-tab-btn.active {
+  background: var(--paper-card);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+/* Hide dashboard menu toggle button on desktop */
+.dashboard-menu-toggle {
+  display: none;
+}
+
+/* ============================================================
+   RESPONSIVE — Mobile: Everything in drawers
+   ============================================================ */
+@media (max-width: 1024px) {
+  .browse-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-sidebar-desktop {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Show filter toggle button on mobile */
+  .filters-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  
+  /* Hide desktop filter sidebar on mobile */
+  .filter-sidebar-desktop {
+    display: none;
+  }
+  
+  /* Show dashboard menu toggle on mobile */
+  .dashboard-menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+    font-weight: 700;
+  }
+  
+  /* Hide desktop dashboard tabs on mobile */
+  .dashboard-tabs-desktop {
+    display: none;
+  }
+  
+  /* Section head with hamburger on mobile */
+  .section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .section-head h2 {
+    font-size: 24px;
+  }
+  
+  /* Full width results on mobile */
+  .browse-results-full {
+    margin: 0 0 30px;
+  }
+}
+
+@media (max-width: 480px) {
+  .section-head h2 {
+    font-size: 20px;
+  }
+  
+  .filter-drawer {
+    width: 100vw;
+  }
+}
+
+/* ============================================================
+   BROWSE / WORKERS LAYOUT — Desktop: Filters on left, content on right
+   ============================================================ */
+   .browse-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 28px;
+    margin: 20px 0 40px;
+  }
+  
+  /* Desktop filter sidebar - always visible */
+  .filter-sidebar-desktop {
+    position: sticky;
+    top: 88px;
+    align-self: start;
+    background: var(--bg-card);
+    padding: 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+  
+  .filter-sidebar-desktop .filter-sidebar-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--border);
+  }
+  
+  .filter-sidebar-desktop .filter-sidebar-head h3 {
+    font-size: 15px;
+    font-weight: 700;
+    font-family: var(--font);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  
+  .filter-sidebar-desktop .filter-result-count {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-mute);
+    font-family: var(--font-mono);
+  }
+  
+  /* Hide filter toggle button on desktop */
+  .filters-toggle-btn {
+    display: none;
+  }
+  
+  /* Browse results - full width when filters hidden */
+  .browse-results-full {
+    margin: 20px 0 40px;
+  }
+  
+  /* ============================================================
+     DASHBOARD — Desktop: Menu tabs at top
+     ============================================================ */
+  .dashboard-tabs-desktop {
+    display: flex;
+    gap: 6px;
+    margin: 16px 0 24px;
+    flex-wrap: wrap;
+    background: var(--border);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  
+  .dashboard-tab-btn {
+    padding: 10px 22px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: var(--transition);
+    color: var(--text-mute);
+    font-family: var(--font);
+    flex: 0 1 auto;
+  }
+  
+  .dashboard-tab-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.5);
+  }
+  
+  .dashboard-tab-btn.active {
+    background: var(--paper-card);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+  
+  /* Hide dashboard menu toggle button on desktop */
+  .dashboard-menu-toggle {
+    display: none;
+  }
+  
+  /* ============================================================
+     RESPONSIVE — Mobile: Everything in drawers
+     ============================================================ */
+  @media (max-width: 1024px) {
+    .browse-layout {
+      grid-template-columns: 1fr;
+    }
+    
+    .filter-sidebar-desktop {
+      position: static;
+      max-height: none;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    /* Show filter toggle button on mobile */
+    .filters-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    
+    /* Hide desktop filter sidebar on mobile */
+    .filter-sidebar-desktop {
+      display: none;
+    }
+    
+    /* Show dashboard menu toggle on mobile */
+    .dashboard-menu-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      font-weight: 700;
+    }
+    
+    /* Hide desktop dashboard tabs on mobile */
+    .dashboard-tabs-desktop {
+      display: none;
+    }
+    
+    /* Section head with hamburger on mobile */
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    
+    .section-head h2 {
+      font-size: 24px;
+    }
+    
+    /* Full width results on mobile */
+    .browse-results-full {
+      margin: 0 0 30px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .section-head h2 {
+      font-size: 20px;
+    }
+    
+    .filter-drawer {
+      width: 100vw;
+    }
+  }
+  
+  /* ============================================================
+     HOME — SINGLE-LINE CATEGORIES (v7)
+     ============================================================ */
+  .categories-grid-line {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 16px;
+  }
+  
+  @media (max-width: 900px) {
+    .categories-grid-line {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      overflow-x: visible;
+      padding-bottom: 10px;
+      scroll-snap-type: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .categories-grid-line .category-card {
+      flex: none;
+      scroll-snap-align: none;
+    }
+  }
+  
+  @media (max-width: 600px) {
+    .categories-grid-line {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+  }
+  
+  @media (max-width: 480px) {
+    .categories-grid-line {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .categories-grid-line .category-card {
+      flex-basis: auto;
+    }
+  }
