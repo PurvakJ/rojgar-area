@@ -2709,3 +2709,134 @@
       flex-basis: auto;
     }
   }
+
+  /* ============================================================
+   UNIQUE BOLD DESIGN ELEMENT — replaces police barricade tape
+   ============================================================ */
+:root {
+  /* Bold geometric pattern instead of stripe */
+  --brand-bar: repeating-linear-gradient(
+    90deg,
+    var(--primary) 0px,
+    var(--primary) 8px,
+    var(--accent) 8px,
+    var(--accent) 16px,
+    var(--primary) 16px,
+    var(--primary) 20px
+  );
+}
+
+/* Hero bottom edge - bold geometric bar */
+.hero::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 6px;
+  background: var(--brand-bar);
+  z-index: 2;
+  opacity: 1;
+  box-shadow: 0 -2px 20px rgba(240, 162, 2, 0.3);
+}
+
+/* Auth card top - bold geometric bar */
+.auth-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: var(--brand-bar);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* Footer top - bold geometric bar */
+.footer::before {
+  content: '';
+  display: block;
+  height: 6px;
+  background: var(--brand-bar);
+  opacity: 1;
+  box-shadow: 0 2px 20px rgba(240, 162, 2, 0.15);
+}
+
+/* Filter drawer top - bold geometric bar */
+.filter-drawer::before {
+  content: '';
+  display: block;
+  height: 6px;
+  background: var(--brand-bar);
+  flex-shrink: 0;
+  opacity: 1;
+}
+
+/* Urgent badge - bold solid with glow effect */
+.ad-card-new[style*="danger"] {
+  background: var(--danger) !important;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: 0 0 30px rgba(193, 68, 14, 0.4);
+  animation: urgentGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes urgentGlow {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(193, 68, 14, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 40px rgba(193, 68, 14, 0.6);
+  }
+}
+
+/* Add a unique corner accent to cards */
+.ad-card::after,
+.category-card::after,
+.pack-card::after,
+.step-card::after,
+.stat-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, transparent 50%, var(--accent) 50%);
+  opacity: 0.08;
+  pointer-events: none;
+  border-radius: 0 0 var(--radius) 0;
+}
+
+/* Hover effect - corner accent becomes visible */
+.ad-card:hover::after,
+.category-card:hover::after,
+.pack-card:hover::after,
+.step-card:hover::after,
+.stat-card:hover::after {
+  opacity: 0.2;
+  transition: opacity 0.3s ease;
+}
+
+/* Section headers - bold underline accent */
+.section-head h2 {
+  position: relative;
+  display: inline-block;
+}
+
+.section-head h2::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.section-head.text-center h2::after {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
