@@ -24,6 +24,13 @@
    3-across grid so 6 cards form 2 rows of 3). See the
    "HOME — SINGLE-LINE CATEGORIES" and "HOME — 3x2 RECENT
    LISTINGS GRID" sections near the end of this file.
+
+   v9 NOTE: "Post a Requirement" now supports a custom
+   Business Type (an "Other" option that reveals a text
+   input) — it reuses the existing .custom-category-field
+   fade-in animation class below (originally written for the
+   Worker Category "Other" field), so no new CSS was needed
+   for that feature.
    ========================================================== */
 
    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -3097,4 +3104,9 @@
   color: var(--accent);
   text-transform: none !important;  /* Changed from 'uppercase' to 'none' */
   text-decoration: none !important;
+}
+@media (max-width: 768px) {
+  .nav-menu-wrapper .nav-links {
+    margin-top: 12px;
+  }
 }

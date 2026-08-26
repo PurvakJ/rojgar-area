@@ -1,11 +1,59 @@
 /* ==========================================================
-   Rojgar AREA — Frontend (Enhanced v8)
+   Rojgar AREA — Frontend (Enhanced v10)
    Plain React 18 + Babel-standalone (no build step).
    Backend: Google Apps Script Web App (Code.gs)
    Images:  Cloudinary unsigned upload
    Map:     Leaflet + OpenStreetMap tiles (no API key needed)
 
-   NEW IN THIS VERSION (v8):
+   NEW IN THIS VERSION (v10):
+   - Added "Teacher / Professor / Tutor" to WORKER_CATEGORIES and
+     "Education" + "Homekeeper" to BUSINESS_TYPES. Both the "Post a
+     Requirement" dropdowns AND the Browse Jobs / Find Workers filter
+     dropdowns are built dynamically from these two arrays already
+     (buildCategoryOptions / buildBusinessTypeOptions, and the
+     WorkerFilterPanel category select), so simply adding these
+     values here is enough — no other wiring was needed. Added
+     matching icons (CATEGORY_ICONS) and a home-page category image
+     (CATEGORY_IMAGES) for the new worker category too.
+   - DEFAULT PLACEHOLDER PHOTOS: if a business doesn't upload any
+     workplace photos when posting a requirement, the ad no longer
+     shows a blank "No photo" box. It now shows a relevant stock
+     photo based on the ad's business type (e.g. a classroom photo
+     for "Education", a home-interior photo for "Homekeeper", a shop
+     front for "Shop / Retail", etc.) — see DEFAULT_BUSINESS_TYPE_IMAGES,
+     getDefaultAdImage() and getAdDisplayImages() below. This NEVER
+     touches or replaces real uploaded photos — it only fills in when
+     ad.images is empty, on both the ad card grid and the ad details
+     page gallery. AdFormPage also now tells the business this will
+     happen so nobody is confused about why a photo appears.
+   - This frontend is paired with a new "fast" Code.gs that adds a
+     CacheService caching layer in front of every Google Sheets read
+     (see Code.gs's "FAST-FETCH CACHE LAYER" section), so Home /
+     Browse Jobs / Find Workers load noticeably faster under repeat
+     traffic. No frontend API contract changed — apiCall() calls are
+     unchanged, only the backend got faster.
+
+   CARRIED OVER FROM v9:
+   - "Post a Requirement" has a custom Business Type. The Business
+     Type dropdown includes an "Other" option; picking it reveals a
+     required text input ("What kind of business is this?"), exactly
+     mirroring the existing Worker Category "Other" -> customCategory
+     pattern.
+   - The saved custom business type is what actually displays
+     everywhere a business type is shown (ad cards, ad details,
+     admin/business labels) — see the businessTypeOf(ad) helper,
+     which mirrors categoryOf(ad).
+   - The "Business type" filter dropdown on Browse Jobs is BUILT FROM
+     THE DATA (buildBusinessTypeOptions), the same way the "Worker
+     category" filter already works — so any custom business type
+     someone posts (e.g. "NGO", "Farm", "Studio") automatically shows
+     up as a selectable filter option, and filtering matches against
+     the resolved custom label instead of the raw "Other" value.
+   - Backend (Code.gs) has a matching customBusinessType column on
+     Advertisements, with the same validation and clearing rules as
+     customCategory.
+
+   CARRIED OVER FROM v8:
    - "📥 Download App" button added to the navbar (desktop + the
      mobile hamburger dropdown, since it lives inside the shared
      nav-menu-wrapper) and to the footer's Quick Links column.
@@ -20,7 +68,7 @@
      "can't scan for viruses" confirmation page instead of an
      instant download — that's a Drive limitation, not a bug here.
 
-   NEW IN v7:
+   CARRIED OVER FROM v7:
    - Real URL routing via the browser History API — no more router
      library, but the address bar now actually reflects the page:
        /                 -> Home
@@ -67,16 +115,15 @@
    directly — in-app navigation (clicking links) will still work
    fine either way, since that never leaves the page.
 
-   NEW IN v6:
+   CARRIED OVER FROM v6:
    - "Browse Jobs" and "Find Workers" no longer show a permanent
-     filter sidebar. Filters now live inside a hamburger-triggered
-     slide-in drawer, opened with a "☰ Filters" button next to the
-     page heading — same filter fields, just tucked away until
-     needed, so results get the full width and the page feels
-     less cluttered.
+     filter sidebar on mobile. Filters live inside a hamburger-
+     triggered slide-in drawer, opened with a "☰ Filters" button next
+     to the page heading. Desktop shows a persistent left sidebar.
    - "My Dashboard" section switcher (My posted ads / Saved
-     advertisements / My reports / My Profile) now also opens
-     from a "☰ Menu" hamburger drawer instead of a row of tabs.
+     advertisements / My reports / My Profile) opens from a
+     "☰ Menu" hamburger drawer on mobile, and from a row of tabs on
+     desktop.
    - My Dashboard now opens on "Saved advertisements" by default
      for worker-only accounts (who can't post ads), and on
      "My posted ads" for business/both/admin accounts.
@@ -150,7 +197,7 @@
    // CONFIG
    // ------------------------------------------------------------
    const CONFIG = {
-     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzIBikVtx2QBDPnb4Hou8RrLFADWKK7Iswy1ArxkXeDidH0vgs8XQQLBVwAYWSQO5Ys/exec',
+     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycby573QoGBB-KaxRaSFYfVwWypdDxxkedtkq4v2PRmHygH3kYDixeusGB1zzas1tV0QS/exec',
      CLOUDINARY: {
        // TODO: replace with YOUR Cloudinary cloud name (Dashboard, top-left)
        // and an UNSIGNED upload preset you created for this project.
@@ -166,15 +213,21 @@
      APP_DOWNLOAD_URL: 'https://drive.google.com/uc?export=download&id=13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2'
    };
    
+   // NEW (v10): "Teacher / Professor / Tutor" added as a predefined
+   // worker category (before "Other").
    const WORKER_CATEGORIES = [
      'Skilled Labour', 'Unskilled Labour', 'Driver', 'Electrician', 'Plumber',
      'Mason', 'Welder', 'Machine Operator', 'Helper', 'Security Guard',
      'Tailor / Stitching', 'Packing Staff', 'Delivery Staff', 'Housekeeping',
-     'Cook / Kitchen Staff', 'Other'
+     'Cook / Kitchen Staff', 'Teacher / Professor / Tutor', 'Other'
    ];
+   // NEW (v10): "Education" and "Homekeeper" added as predefined business
+   // types (before "Other"). "Other" still lets a business describe its
+   // own custom type — see the customBusinessType field on the post form
+   // and businessTypeOf()/buildBusinessTypeOptions() below.
    const BUSINESS_TYPES = [
      'Factory', 'Shop / Retail', 'Restaurant / Hotel', 'Construction Site',
-     'Warehouse', 'Workshop', 'Office', 'Salon', 'Other'
+     'Warehouse', 'Workshop', 'Office', 'Salon', 'Education', 'Homekeeper', 'Other'
    ];
    const REPORT_REASONS = [
      'Fake — this business/job does not exist',
@@ -203,19 +256,24 @@
      'Skilled Labour': '🔧', 'Unskilled Labour': '💪', 'Driver': '🚗', 'Electrician': '⚡',
      'Plumber': '🔧', 'Mason': '🏗️', 'Welder': '🔥', 'Machine Operator': '🔩',
      'Helper': '🤝', 'Security Guard': '🛡️', 'Tailor / Stitching': '🧵', 'Packing Staff': '📦',
-     'Delivery Staff': '🛵', 'Housekeeping': '🧹', 'Cook / Kitchen Staff': '👨‍🍳', 'Other': '📋'
+     'Delivery Staff': '🛵', 'Housekeeping': '🧹', 'Cook / Kitchen Staff': '👨‍🍳',
+     // NEW (v10)
+     'Teacher / Professor / Tutor': '📚',
+     'Other': '📋'
    };
    
    // Enhanced category images for hero section
    const CATEGORY_IMAGES = {
-     'Skilled Labour': 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=400&h=300&fit=crop',
-     'Driver': 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=300&fit=crop',
-     'Electrician': 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop',
-     'Plumber': 'https://images.unsplash.com/photo-1607472586893-edb57bcf0e39?w=400&h=300&fit=crop',
-     'Mason': 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=400&h=300&fit=crop',
-     'Welder': 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=300&fit=crop',
-     'Security Guard': 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=400&h=300&fit=crop',
-     'Cook / Kitchen Staff': 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&h=300&fit=crop'
+     'Skilled Labour': 'https://digitallabourchowk.com/wp-content/uploads/2024/09/SM916619-1024x683.jpg',
+     'Driver': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlSwHhlKK2UPSAOzRpYwzQ7LLp5EqwWiorrK1KjNuUm0QR1m9S7GoZsQo&s=10',
+     'Electrician': 'https://thumbs.dreamstime.com/b/young-electrical-engineer-protective-workware-repairing-connecting-wires-using-screw-driver-workplace-young-247556897.jpg',
+     'Plumber': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQhHjszVTF_q_AjyXl0NWt19u12R5tSDItvXjS3l15i2gjfwhqdirT47Jdc&s=10',
+     'Mason': 'https://t3.ftcdn.net/jpg/00/57/19/90/360_F_57199075_8qPTCvJw8pZy3ZSxut230b3lOCLlogEm.jpg',
+     'Welder': 'https://media.istockphoto.com/id/835302104/photo/preparing-to-continue-welding-metals.jpg?s=612x612&w=0&k=20&c=845ayUPdfzsS_z-TI-ZeAJXj7po-0qb2Xn4TIGkehYo=',
+     'Security Guard': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwHsnrqLfEIoROzMQ4ylJHkJS2c8q9NYYp7LNSzQYdl7EbB2mPG9ezWKA7&s=10',
+     'Cook / Kitchen Staff': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSfcow0HnkKf7cd2uj4wlSYfiP3SuV18FTOhDSj0Z3BnA&s=10',
+     // NEW (v10): classroom/tutoring photo for the new worker category
+     'Teacher / Professor / Tutor': 'https://img.magnific.com/premium-photo/teachers-day-india-handsome-indian-man-teaching_548646-54570.jpg?w=360'
    };
    
    // ------------------------------------------------------------
@@ -353,10 +411,76 @@
      return (ad.workerCategory === 'Other' && ad.customCategory) ? ad.customCategory : (ad.displayCategory || ad.workerCategory);
    }
    
+   // Resolves to the business's own custom label when businessType is
+   // 'Other', otherwise falls back to the server's displayBusinessType
+   // (or the raw businessType if the ad predates this field).
+   function businessTypeOf(ad) {
+     return (ad.businessType === 'Other' && ad.customBusinessType)
+       ? ad.customBusinessType
+       : (ad.displayBusinessType || ad.businessType);
+   }
+   
    function buildCategoryOptions(ads) {
      const set = new Set(WORKER_CATEGORIES.filter((c) => c !== 'Other'));
      (ads || []).forEach((a) => { if (categoryOf(a)) set.add(categoryOf(a)); });
      return Array.from(set).sort();
+   }
+   
+   // Mirrors buildCategoryOptions() above, but for Business Type —
+   // starts from the preset BUSINESS_TYPES list (minus "Other") and
+   // adds in any custom business types that have actually been
+   // posted, so the Browse Jobs filter dropdown always reflects what's
+   // really out there.
+   function buildBusinessTypeOptions(ads) {
+     const set = new Set(BUSINESS_TYPES.filter((c) => c !== 'Other'));
+     (ads || []).forEach((a) => { if (businessTypeOf(a)) set.add(businessTypeOf(a)); });
+     return Array.from(set).sort();
+   }
+   
+   // ------------------------------------------------------------
+   // DEFAULT PLACEHOLDER IMAGES (NEW v10)
+   // ------------------------------------------------------------
+   // Used whenever a business hasn't uploaded any workplace photos —
+   // instead of a bare "No photo" box, ad cards and the details page
+   // show a relevant stock photo matched to the ad's business type
+   // (falling back to the worker category's home-page image, then to
+   // a generic workplace photo). This NEVER overwrites real uploaded
+   // photos — everything that displays an ad's photos should read
+   // through getAdDisplayImages(ad) below rather than ad.images
+   // directly, so real photos always take priority automatically.
+   const DEFAULT_BUSINESS_TYPE_IMAGES = {
+     'Factory': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIvRfcZIue1oEYsghRQQJotjDWnVSs8fVdaIXmv5LHhkSS6n15VSpvoTWB&s=10',
+     'Shop / Retail': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQsy6r2sOQeFTUJVg10cmnW6WENOBNQHQsDJEVyt29ZxA&s=10',
+     'Restaurant / Hotel': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&h=400&fit=crop',
+     'Construction Site': 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=600&h=400&fit=crop',
+     'Warehouse': 'https://storage.googleapis.com/realtyplusmag-news-photo/news-photo/115241.Page-24.jpg',
+     'Workshop': 'https://i.postimg.cc/qMGg2X1J/Whats_App_Image_2026_01_30_at_17_48_42.jpg',
+     'Office': 'https://img.magnific.com/premium-photo/professional-working-person_170153-1259.jpg?semt=ais_hybrid&w=740&q=80',
+     'Salon': 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&h=400&fit=crop',
+     // NEW (v10): school/college photo for the "Education" business type
+     'Education': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcREjYDDVF5S4wiFqJpCqEoK8qwDmgmmIt8xU3ryahgHZJ5kGqxrX8BTWTQ&s=10',
+     // NEW (v10): home/domestic-help photo for the "Homekeeper" business type
+     'Homekeeper': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQajR9N_BAr-IrdhLkp64zxeu4R6Q4TwMYi71RXuPYHZre6Lt-kOX_1bhmL&s=10'
+   };
+   const DEFAULT_FALLBACK_AD_IMAGE = 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=600&h=400&fit=crop';
+   
+   // Picks the best available placeholder for an ad with no uploaded
+   // photos: business type image first, then the worker-category home
+   // image, then a generic workplace photo.
+   function getDefaultAdImage(ad) {
+     const bt = businessTypeOf(ad);
+     if (bt && DEFAULT_BUSINESS_TYPE_IMAGES[bt]) return DEFAULT_BUSINESS_TYPE_IMAGES[bt];
+     const cat = categoryOf(ad);
+     if (cat && CATEGORY_IMAGES[cat]) return CATEGORY_IMAGES[cat];
+     return DEFAULT_FALLBACK_AD_IMAGE;
+   }
+   
+   // The single source of truth for "what photos should this ad show".
+   // Real uploaded photos always win; only falls back to a placeholder
+   // when the business skipped the photo upload step entirely.
+   function getAdDisplayImages(ad) {
+     if (ad.images && ad.images.length > 0) return ad.images;
+     return [getDefaultAdImage(ad)];
    }
    
    // Generic — works for any object list with locationLat/locationLng fields
@@ -437,7 +561,11 @@
          `${a.jobTitle} ${a.businessName} ${a.description} ${a.skills} ${categoryOf(a)}`.toLowerCase().includes(q));
      }
      if (filters.category) list = list.filter((a) => categoryOf(a) === filters.category);
-     if (filters.businessType) list = list.filter((a) => a.businessType === filters.businessType);
+     // Filter by the RESOLVED business type (businessTypeOf), not the
+     // raw businessType field, so choosing a custom business type in
+     // the filter (e.g. "Farm") correctly matches every ad whose
+     // businessType is 'Other' with that same customBusinessType.
+     if (filters.businessType) list = list.filter((a) => businessTypeOf(a) === filters.businessType);
      if (filters.minSalary) list = list.filter((a) => parseSalaryNumber(a.salary) >= Number(filters.minSalary));
      if (filters.experience) list = list.filter((a) => (a.experience || '').toLowerCase().includes(filters.experience.toLowerCase()));
      if (filters.education) list = list.filter((a) => (a.education || '').toLowerCase().includes(filters.education.toLowerCase()));
@@ -1722,12 +1850,17 @@
    
    function AdCard({ ad, onClick }) {
      const hasImages = ad.images && ad.images.length > 0;
+     const displayImages = getAdDisplayImages(ad);
      const isNew = new Date(ad.postedAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
      return (
        <div className="ad-card" onClick={onClick}>
-         <div className="ad-card-img" style={hasImages ? { backgroundImage: `url(${ad.images[0]})` } : {}}>
-           {!hasImages && <div className="no-img">No photo</div>}
-           {ad.images && ad.images.length > 1 && <div className="ad-card-count">{ad.images.length} photos</div>}
+         <div className="ad-card-img" style={{ backgroundImage: `url(${displayImages[0]})` }}>
+           {/* NEW (v10): if the business skipped photo upload, show a
+               small "Representative photo" tag instead of a blank box —
+               the image itself is a relevant default (see
+               getAdDisplayImages / DEFAULT_BUSINESS_TYPE_IMAGES). */}
+           {!hasImages && <div className="ad-card-placeholder-tag">📷 Representative photo</div>}
+           {hasImages && ad.images.length > 1 && <div className="ad-card-count">{ad.images.length} photos</div>}
            {ad.status !== 'active' && <div className="ad-card-badge"><StatusBadge status={ad.status} /></div>}
            {isNew && !ad.urgent && <div className="ad-card-new">New</div>}
            {ad.urgent && <div className="ad-card-new" style={{ background: 'var(--danger, #d9363e)' }}>🔥 Urgent</div>}
@@ -1737,7 +1870,10 @@
              {ad.jobTitle}
              {ad.businessVerified && <VerifiedBadge small />}
            </div>
-           <div className="ad-card-biz">{ad.businessName} · {ad.businessType}</div>
+           {/* Shows businessTypeOf(ad) so a custom business type
+               (businessType === 'Other') displays its own label instead of
+               the literal word "Other". */}
+           <div className="ad-card-biz">{ad.businessName} · {businessTypeOf(ad)}</div>
            <div className="ad-card-meta">
              <span>📍 {ad.locationAddress || 'Location on request'}</span>
              <span>👷 {ad.numWorkers} needed</span>
@@ -1756,7 +1892,7 @@
    // FILTER PANEL — content rendered inside the "Filters" drawer
    // on the Browse Jobs page.
    // ==============================================================
-   function FilterPanel({ filters, setFilters, categoryOptions, geoStatus, onRequestLocation, resultCount }) {
+   function FilterPanel({ filters, setFilters, categoryOptions, businessTypeOptions, geoStatus, onRequestLocation, resultCount }) {
      const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
      const reset = () => setFilters({ ...EMPTY_FILTERS });
    
@@ -1798,9 +1934,17 @@
    
          <div className="field">
            <label>Business type</label>
+           {/*
+             Options are built FROM THE DATA (buildBusinessTypeOptions),
+             the same way "Worker category" already works — so any
+             custom business type someone has posted via the "Other"
+             field on Post a Requirement (as well as the new "Education"
+             and "Homekeeper" presets) shows up here automatically as a
+             real, selectable filter value.
+           */}
            <select value={filters.businessType} onChange={(e) => set('businessType', e.target.value)}>
              <option value="">All business types</option>
-             {BUSINESS_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
+             {businessTypeOptions.map((c) => <option key={c} value={c}>{c}</option>)}
            </select>
          </div>
    
@@ -1861,6 +2005,10 @@
      }, [allAds, filters, geo.coords]);
    
      const categoryOptions = useMemo(() => buildCategoryOptions(allAds || []), [allAds]);
+     // Dynamic Business Type filter options, built the same way
+     // categoryOptions is above — automatically includes "Education" /
+     // "Homekeeper" plus any custom types businesses have posted.
+     const businessTypeOptions = useMemo(() => buildBusinessTypeOptions(allAds || []), [allAds]);
    
      return (
 <div className="container">
@@ -1880,6 +2028,7 @@
         filters={filters}
         setFilters={setFilters}
         categoryOptions={categoryOptions}
+        businessTypeOptions={businessTypeOptions}
         geoStatus={geo.status}
         onRequestLocation={geo.request}
         resultCount={results ? results.length : undefined}
@@ -1911,6 +2060,7 @@
       filters={filters}
       setFilters={setFilters}
       categoryOptions={categoryOptions}
+      businessTypeOptions={businessTypeOptions}
       geoStatus={geo.status}
       onRequestLocation={geo.request}
       resultCount={results ? results.length : undefined}
@@ -1982,7 +2132,10 @@
      };
    
      const isOwner = user && ad.postedBy === user.userId;
-     const images = ad.images || [];
+     // NEW (v10): fall back to a relevant default photo when the
+     // business didn't upload any workplace photos.
+     const hasRealImages = ad.images && ad.images.length > 0;
+     const images = getAdDisplayImages(ad);
      const whatsappLink = buildWhatsAppLink(ad.contactPhone, `Hi, I'm interested in the "${ad.jobTitle}" position at ${ad.businessName} that I saw on Rojgar AREA.`);
    
      return (
@@ -2027,6 +2180,13 @@
                    <img key={i} src={src} alt={`Thumbnail ${i + 1}`} className={i === activeImg ? 'active' : ''} onClick={() => setActiveImg(i)} />
                  ))}
                </div>
+             )}
+             {/* NEW (v10): tells the visitor this is a stand-in photo, not
+                 the actual workplace, whenever no real photos were uploaded. */}
+             {!hasRealImages && (
+               <p style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 8 }}>
+                 📷 Representative photo — this business hasn't uploaded workplace photos yet.
+               </p>
              )}
    
              <div className="desc-block">
@@ -2073,7 +2233,8 @@
              <StatusBadge status={ad.status} />
              {ad.businessVerified && <span style={{ marginLeft: 8 }}><VerifiedBadge /></span>}
              <h1 style={{ marginTop: 10 }}>{ad.jobTitle}</h1>
-             <div className="biz-name">{ad.businessName} · {ad.businessType}</div>
+             {/* Shows businessTypeOf(ad) here too. */}
+             <div className="biz-name">{ad.businessName} · {businessTypeOf(ad)}</div>
              {distanceKm != null && <DistanceChip km={distanceKm} />}
    
              <div className="spec-list">
@@ -2208,7 +2369,7 @@
    // AD FORM PAGE
    // ==============================================================
    const BLANK_FORM = {
-     businessName: '', businessType: BUSINESS_TYPES[0], jobTitle: '', workerCategory: WORKER_CATEGORIES[0],
+     businessName: '', businessType: BUSINESS_TYPES[0], customBusinessType: '', jobTitle: '', workerCategory: WORKER_CATEGORIES[0],
      customCategory: '', numWorkers: 1, salary: '', education: '', experience: '', skills: '', workingHours: '',
      description: '', contactPhone: '', locationLat: null, locationLng: null, locationAddress: '', urgent: false
    };
@@ -2262,6 +2423,7 @@
         }
         setForm({
           businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
+          customBusinessType: ad.customBusinessType || '',
           jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
           customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
           education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
@@ -2290,6 +2452,10 @@
         setError('Business name and job title are required.'); 
         return; 
       }
+      if (form.businessType === 'Other' && !form.customBusinessType.trim()) {
+        setError('Please describe your business type.');
+        return;
+      }
       if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
         setError('Please describe the worker category.'); 
         return;
@@ -2316,6 +2482,10 @@
     if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
     if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
   
+    // NEW (v10): live preview of the fallback photo this ad would use if
+    // no photos are uploaded, so the business can see what shows up.
+    const previewFallbackImage = images.length === 0 ? getDefaultAdImage(form) : null;
+  
     return (
       <div className="container form-page">
         <h1>{isEdit ? 'Edit your requirement' : t('postAJob')}</h1>
@@ -2329,9 +2499,28 @@
             <div className="field"><label>Business / workplace name *</label>
               <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." /></div>
             <div className="field"><label>Business type</label>
-              <select value={form.businessType} onChange={(e) => set('businessType', e.target.value)}>
+              <select
+                value={form.businessType}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  // Mirrors the worker-category behaviour: clear the
+                  // custom text whenever the user picks something other
+                  // than "Other", so a stale value can't be resubmitted.
+                  setForm((f) => ({ ...f, businessType: next, customBusinessType: next === 'Other' ? f.customBusinessType : '' }));
+                }}
+              >
                 {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select></div>
+            {form.businessType === 'Other' && (
+              <div className="field full custom-category-field">
+                <label>What kind of business is this? *</label>
+                <input
+                  value={form.customBusinessType}
+                  onChange={(e) => set('customBusinessType', e.target.value)}
+                  placeholder="Describe your business type, e.g. NGO, Farm, Studio, Clinic"
+                />
+              </div>
+            )}
             <div className="field full"><label>Contact phone (used for WhatsApp "Apply Now")</label>
               <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="10-digit mobile number" /></div>
           </div>
@@ -2377,6 +2566,21 @@
   
           <div className="form-section-title">Workplace photos</div>
           <ImageUploader images={images} onChange={setImages} />
+          {/* NEW (v10): explain + preview the automatic fallback photo */}
+          <div className="photo-fallback-hint">
+            {previewFallbackImage ? (
+              <>
+                <img src={previewFallbackImage} alt="Representative preview" className="photo-fallback-hint-img" />
+                <p>
+                  Didn't add any photos yet? No problem — until you upload real workplace photos,
+                  this representative photo (matched to your business type) will be shown instead,
+                  so your listing never looks empty.
+                </p>
+              </>
+            ) : (
+              <p>✓ Your uploaded photo(s) above will be shown on this listing.</p>
+            )}
+          </div>
   
           <div className="form-section-title">Workplace location</div>
           <LocationPicker
@@ -3521,7 +3725,7 @@
        } catch (err) { toast(err.message, 'error'); } finally { setBusyId(null); }
      };
    
-     // NEW: suspend/restore a worker or business profile — hides them
+     // Suspend/restore a worker or business profile — hides them
      // from public "Find Workers" search and flags their profile page.
      const toggleSuspended = async (u) => {
        setBusyId(u.userId);
