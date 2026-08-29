@@ -179,6 +179,26 @@
      "Unsigned" (Cloudinary Dashboard > Settings > Upload > Upload
      presets). Fix by replacing BOTH values below with your own
      Cloudinary cloud name and an unsigned upload preset you created.
+
+   NEW IN THIS VERSION (v11 — this edit):
+   - PRIVACY: On the "Find Workers" listing cards (WorkerCard), the
+     worker's phone number is now only shown to logged-in visitors.
+     Logged-out visitors see everything else on the card (name,
+     skills, location, rating, bio) but not the raw phone number —
+     they already get a "🔒 Log in to contact" button instead of the
+     WhatsApp button, this just extends the same login-gate to the
+     plain phone number line so it can't be scraped from the public
+     listing without logging in. The full worker profile page was
+     already login-gated (v11 note below); this only affects the
+     outer list/card view.
+   - DEFAULT_CATEGORY_IMAGE: the Home page's "Popular Job Categories"
+     row now always shows a photo for every category tile, even for
+     brand-new / custom worker categories that don't have a matching
+     entry in CATEGORY_IMAGES yet. Previously such categories fell
+     back to `null` and rendered as a plain icon+text tile with no
+     photo; now they fall back to a generic relevant work photo via
+     DEFAULT_CATEGORY_IMAGE, so newly added categories look just as
+     polished as the built-in ones with zero extra config.
    ========================================================== */
    import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo,} from 'react';
    import './App.css';
@@ -275,6 +295,16 @@
      // NEW (v10): classroom/tutoring photo for the new worker category
      'Teacher / Professor / Tutor': 'https://img.magnific.com/premium-photo/teachers-day-india-handsome-indian-man-teaching_548646-54570.jpg?w=360'
    };
+   
+   // NEW (v11): generic fallback photo used on the Home page's "Popular
+   // Job Categories" tiles whenever a category (typically a brand-new
+   // custom worker category added via the "Other" field, or any preset
+   // category that hasn't had a CATEGORY_IMAGES entry added yet) has no
+   // matching entry in CATEGORY_IMAGES above. Without this, such a
+   // category tile rendered with no photo at all (icon + text only).
+   // Keep this as a neutral, general "people at work" photo so it looks
+   // reasonable for literally any category name.
+   const DEFAULT_CATEGORY_IMAGE = 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=600&h=400&fit=crop';
    
    // ------------------------------------------------------------
    // I18N — English / Hindi / Punjabi
@@ -1249,7 +1279,27 @@
      switch (route.page) {
        case 'home': return <HomePage navigate={navigate} />;
        case 'browse': return <AdvertisementsPage navigate={navigate} initialFilters={route.params.filters} />;
-       case 'details': return <AdDetailsPage adId={route.params.adId} navigate={navigate} />;
+       case 'details':
+         // NEW (v11): viewing the FULL details of an advertisement — the
+         // page that reveals the business's phone/WhatsApp "Apply" links,
+         // exact photos, map pin, etc. — now requires being logged in.
+         // Logged-out visitors can still browse/search cards on Browse
+         // Jobs; clicking a card sends them to log in / sign up first,
+         // then straight back to this exact listing.
+         if (!user) {
+           return (
+             <LoginPage
+               navigate={navigate}
+               initialMode="login"
+               redirectTo={{
+                 page: 'details',
+                 params: { adId: route.params.adId },
+                 message: 'Log in to view the full details of this advertisement and contact the business directly.'
+               }}
+             />
+           );
+         }
+         return <AdDetailsPage adId={route.params.adId} navigate={navigate} />;
        case 'post':
          if (!user) return <LoginPage navigate={navigate} initialMode="login" redirectTo="post" />;
          if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
@@ -1261,7 +1311,26 @@
        case 'dashboard': return user ? <UserDashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="dashboard" />;
        case 'admin': return (user && user.role === 'admin') ? <AdminDashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="admin" />;
        case 'workers': return <WorkersBrowsePage navigate={navigate} />;
-       case 'worker-details': return <WorkerProfileViewPage userId={route.params.userId} navigate={navigate} />;
+       case 'worker-details':
+         // NEW (v11): viewing a worker's FULL profile — the page that
+         // reveals their phone/WhatsApp/resume/exact location — now
+         // requires being logged in. "Find Workers" listing cards remain
+         // publicly browsable; tapping a card sends a logged-out visitor
+         // to log in / sign up first, then straight back to this profile.
+         if (!user) {
+           return (
+             <LoginPage
+               navigate={navigate}
+               initialMode="login"
+               redirectTo={{
+                 page: 'worker-details',
+                 params: { userId: route.params.userId },
+                 message: "Log in to view this worker's full profile and contact them directly."
+               }}
+             />
+           );
+         }
+         return <WorkerProfileViewPage userId={route.params.userId} navigate={navigate} />;
        case 'login': return <LoginPage navigate={navigate} initialMode="login" redirectTo={route.params.redirectTo} />;
        case 'register': return <LoginPage navigate={navigate} initialMode="register" redirectTo={route.params.redirectTo} />;
        default: return <HomePage navigate={navigate} />;
@@ -1485,9 +1554,6 @@
             {mobileMenuOpen ? '✕' : '☰'}
           </button>
   
-          {/* Single wrapper — on desktop it's invisible to layout (display:contents),
-              on mobile it becomes the one dropdown panel, so nav-links always
-              render above nav-user in the DOM and on screen. */}
           <div className={`nav-menu-wrapper ${mobileMenuOpen ? 'open' : ''}`}>
             <div className="nav-links">
               <button className={`nav-link ${route.page === 'home' ? 'active' : ''}`} onClick={() => { navigate('home'); closeMenu(); }}>{t('home')}</button>
@@ -1501,20 +1567,6 @@
             </div>
   
             <div className="nav-user">
-              {/* 📥 Download App — opens CONFIG.APP_DOWNLOAD_URL (your Google
-                  Drive link) in a new tab. Sits in the same shared nav-user
-                  row as login/signup, so it shows on desktop and inside the
-                  mobile hamburger dropdown. */}
-              <a
-                href={CONFIG.APP_DOWNLOAD_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-outline-light btn-sm download-app-btn"
-                onClick={closeMenu}
-                style={{ textDecoration: 'none' }}
-              >
-                {t('downloadApp')}
-              </a>
               <LanguageSwitcher />
               {user ? (
                 <>
@@ -1602,7 +1654,11 @@
            icon: CATEGORY_ICONS[name] || '📋', 
            name, 
            count,
-           image: CATEGORY_IMAGES[name] || null
+           // NEW (v11): fall back to a generic default photo instead of
+           // `null` whenever a category (e.g. a brand-new custom one
+           // added via "Other") has no matching CATEGORY_IMAGES entry,
+           // so every category tile always shows a photo.
+           image: CATEGORY_IMAGES[name] || DEFAULT_CATEGORY_IMAGE
          }));
      }, [allAds]);
    
@@ -2089,10 +2145,15 @@
      const [, setApplied] = useState(false);
      const [directionsLoading, setDirectionsLoading] = useState(false);
    
+     // NEW (v11): this page is only ever reached while logged in (see
+     // MainRouter's 'details' case), so `user` is always present here.
+     // getAdById now also requires a viewerId server-side — see Code.gs.
      const load = useCallback(() => {
        setAd(null); setError(null);
-       apiCall('getAdById', { adId }).then((data) => setAd(data.ad)).catch((err) => setError(err.message));
-     }, [adId]);
+       apiCall('getAdById', { adId, viewerId: user ? user.userId : undefined })
+         .then((data) => setAd(data.ad))
+         .catch((err) => setError(err.message));
+     }, [adId, user]);
    
      useEffect(() => { load(); }, [load]);
    
@@ -2414,7 +2475,8 @@
       // Only fetch data if editing and user has permission
       if (!isEdit || !canPostAds(user)) return;
       
-      apiCall('getAdById', { adId }).then((data) => {
+      // NEW (v11): getAdById now requires viewerId server-side too.
+      apiCall('getAdById', { adId, viewerId: user.userId }).then((data) => {
         const ad = data.ad;
         if (ad.postedBy !== user.userId) { 
           setNotFoundOrForbidden(true); 
@@ -2765,9 +2827,22 @@
    // ==============================================================
    // WORKER PROFILES — browse, view, and edit
    // ==============================================================
-   function WorkerCard({ worker, onClick }) {
+   function WorkerCard({ worker, onClick, navigate }) {
      const t = useT();
+     const { user } = useAuth();
      const whatsappLink = buildWhatsAppLink(worker.phone, `Hi ${worker.name}, I saw your profile on Rojgar AREA and I'd like to talk about a job opportunity.`);
+     // NEW (v11): the quick "Apply on WhatsApp" button on the Find Workers
+     // LIST used to open wa.me directly, bypassing the login requirement
+     // on the worker's full profile page. It now checks login state
+     // itself: logged-out visitors are sent to log in / sign up first
+     // (and land right back on this worker's profile afterwards),
+     // logged-in visitors get the real WhatsApp deep link as before.
+     const goToLoginThenProfile = (e) => {
+       e.stopPropagation();
+       if (navigate) {
+         navigate('login', { redirectTo: { page: 'worker-details', params: { userId: worker.userId }, message: "Log in to view this worker's full profile and contact them directly." } });
+       }
+     };
      return (
        <div className="ad-card" onClick={onClick}>
          <div className="ad-card-body">
@@ -2785,7 +2860,12 @@
              <span>🧰 {worker.experienceYears ? `${worker.experienceYears} experience` : 'Experience not specified'}</span>
              {worker.availableNow && <span style={{ color: 'var(--success, #1a9d5c)' }}>🟢 {t('availableNow')}</span>}
            </div>
-           {worker.phone && (
+           {/* NEW (v11): the raw phone number on this public list "outer
+               box" is now only shown to logged-in visitors, matching the
+               WhatsApp button below (which already required login). This
+               keeps a worker's phone number from being visible to anyone
+               just browsing without an account. */}
+           {user && worker.phone && (
              <div className="ad-card-meta" style={{ marginTop: -2 }}>
                <span>📞 {worker.phone}</span>
              </div>
@@ -2798,17 +2878,30 @@
            {worker.distanceKm != null && <div className="ad-card-distance"><DistanceChip km={worker.distanceKm} /></div>}
            {worker.ratingCount > 0 && <StarRating value={worker.avgRating} count={worker.ratingCount} />}
            {worker.bio && <p style={{ fontSize: 13, color: 'var(--text-mute)', marginTop: 6 }}>{worker.bio}</p>}
-           {whatsappLink && (
-             <a
-               href={whatsappLink}
-               target="_blank"
-               rel="noopener noreferrer"
-               onClick={(e) => e.stopPropagation()}
-               className="btn btn-sm"
-               style={{ background: '#25D366', color: '#fff', textDecoration: 'none', display: 'inline-block', marginTop: 8, padding: '6px 12px', borderRadius: 6 }}
-             >
-               {t('applyWhatsApp')}
-             </a>
+           {worker.phone && (
+             user ? (
+               whatsappLink && (
+                 <a
+                   href={whatsappLink}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   onClick={(e) => e.stopPropagation()}
+                   className="btn btn-sm"
+                   style={{ background: '#25D366', color: '#fff', textDecoration: 'none', display: 'inline-block', marginTop: 8, padding: '6px 12px', borderRadius: 6 }}
+                 >
+                   {t('applyWhatsApp')}
+                 </a>
+               )
+             ) : (
+               <button
+                 type="button"
+                 className="btn btn-sm"
+                 onClick={goToLoginThenProfile}
+                 style={{ background: '#25D366', color: '#fff', border: 'none', display: 'inline-block', marginTop: 8, padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}
+               >
+                 🔒 Log in to contact
+               </button>
+             )
            )}
          </div>
        </div>
@@ -2944,7 +3037,7 @@
               <div className="grid">
                 {workers.map((w, i) => (
                   <AnimatedCard key={w.userId} delay={i % 10 * 50}>
-                    <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} />
+                    <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} navigate={navigate} />
                   </AnimatedCard>
                 ))}
               </div>
@@ -2980,10 +3073,16 @@
      const [lightboxIndex, setLightboxIndex] = useState(null);
      const [directionsLoading, setDirectionsLoading] = useState(false);
    
+     // NEW (v11): this page is only ever reached while logged in (see
+     // MainRouter's 'worker-details' case), so `user` is always present
+     // here. getWorkerProfile now also requires a viewerId server-side —
+     // see Code.gs.
      const load = useCallback(() => {
        setWorker(null); setError(null);
-       apiCall('getWorkerProfile', { userId }).then((d) => setWorker(d.user)).catch((e) => setError(e.message));
-     }, [userId]);
+       apiCall('getWorkerProfile', { userId, viewerId: user ? user.userId : undefined })
+         .then((d) => setWorker(d.user))
+         .catch((e) => setError(e.message));
+     }, [userId, user]);
      useEffect(() => { load(); }, [load]);
    
      if (error) return <div className="container"><ErrorState message={error} onRetry={load} /></div>;
@@ -3140,7 +3239,10 @@
      const [error, setError] = useState(null);
    
      useEffect(() => {
-       apiCall('getWorkerProfile', { userId: user.userId }).then((d) => setForm(d.user)).catch((e) => setError(e.message));
+       // NEW (v11): pass viewerId (same as userId here, since you're
+       // always allowed to view your own profile) now that
+       // getWorkerProfile requires a logged-in viewer server-side.
+       apiCall('getWorkerProfile', { userId: user.userId, viewerId: user.userId }).then((d) => setForm(d.user)).catch((e) => setError(e.message));
      }, [user.userId]);
    
      if (error && !form) return <ErrorState message={error} />;
@@ -3808,6 +3910,23 @@
    
      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
    
+     // NEW (v11): redirectTo can now be either a plain page name (string,
+     // e.g. 'post' / 'dashboard' / 'admin' / 'home' — the existing
+     // behaviour) OR an object of the shape
+     //   { page, params, message }
+     // used by the new "log in to view this listing / profile" gates in
+     // MainRouter, so the visitor lands back on the EXACT advertisement
+     // or worker profile they were trying to open, not just a generic
+     // page. `message`, if present, is shown as this screen's subtitle.
+     const redirectIsObject = redirectTo && typeof redirectTo === 'object' && redirectTo.page;
+     const goToRedirect = () => {
+       if (redirectIsObject) {
+         navigate(redirectTo.page, redirectTo.params || {});
+       } else {
+         navigate(redirectTo || 'home');
+       }
+     };
+   
      const submit = async (e) => {
        e.preventDefault();
        setBusy(true); setError(null);
@@ -3817,15 +3936,19 @@
            : await apiCall('register', form);
          login(data.user);
          toast(mode === 'login' ? `Welcome back, ${data.user.name}.` : 'Account created — welcome!', 'success');
-         navigate(redirectTo || 'home');
+         goToRedirect();
        } catch (err) { setError(err.message); } finally { setBusy(false); }
      };
+   
+     const subtitle = redirectIsObject && redirectTo.message
+       ? redirectTo.message
+       : (mode === 'login' ? 'Access your dashboard and saved jobs.' : 'Post job requirements or apply to local jobs.');
    
      return (
        <div className="auth-wrap">
          <div className="auth-card">
            <h2>{mode === 'login' ? t('login') : 'Create your account'}</h2>
-           <div className="sub">{mode === 'login' ? 'Access your dashboard and saved jobs.' : 'Post job requirements or apply to local jobs.'}</div>
+           <div className="sub">{subtitle}</div>
            <form onSubmit={submit}>
              {mode === 'register' && (
                <div className="field"><label>Full name</label><input required value={form.name} onChange={(e) => set('name', e.target.value)} /></div>
