@@ -1,122 +1,107 @@
 /* ==========================================================
-   Rojgar AREA — Frontend (Enhanced v7)
+   Rojgar AREA — Frontend (Enhanced v13)
    Plain React 18 + Babel-standalone (no build step).
-   Backend: Google Apps Script Web App (Code.gs)
+   Backend: Google Apps Script Web App (Code.gs v5)
    Images:  Cloudinary unsigned upload
    Map:     Leaflet + OpenStreetMap tiles (no API key needed)
 
-   NEW IN THIS VERSION (v7):
-   - Real URL routing via the browser History API — no more router
-     library, but the address bar now actually reflects the page:
-       /                 -> Home
-       /browse           -> Browse Jobs
-       /browse/:adId     -> Advertisement details
-       /workers          -> Find Workers
-       /workers/:userId  -> Worker profile
-       /post             -> Post a requirement
-       /edit/:adId       -> Edit a requirement
-       /dashboard        -> My Dashboard
-       /admin            -> Admin Dashboard
-       /login, /register -> Auth pages
-     Back/forward buttons, refresh, and shared/bookmarked links to
-     e.g. https://rojgararea.online/browse/<adId> now work. See the
-     "ROUTER" section below (pathForRoute / routeFromPath) and the
-     App() component's navigate()/popstate wiring.
-     IMPORTANT DEPLOYMENT NOTE: because this is a single-page app,
-     your static host must be configured to serve index.html for
-     ANY path (a "SPA rewrite" / catch-all fallback), otherwise a
-     direct visit or refresh on e.g. /browse/abc123 will 404. See
-     the deployment note at the bottom of this comment block.
-   - Home page now shows only the first 6 Popular Job Categories,
-     laid out in a single row (categories-grid-line — horizontally
-     scrollable on narrow screens instead of wrapping), and only
-     the first 6 Recently Posted Requirements, laid out in a fixed
-     3-across grid (grid-home-recent) so 6 items form 2 rows of 3.
+   NEW IN THIS VERSION (v13 — this edit):
+   - FIX: MyAdsTab (My Dashboard > My posted ads) tracked which ad the
+     owner clicked "⭐ Sponsor" on (`sponsoringAd`) but never actually
+     rendered the SponsorAdModal for it — so the button silently did
+     nothing, and the build reported an unused-variable warning for
+     `sponsoringAd`. The modal is now rendered at the bottom of
+     MyAdsTab, wired to the same open/close/onSponsored plumbing
+     AdDetailsPage already used for its own "Sponsor this ad" flow.
+   - HARDENING: the Razorpay Checkout flow in SponsorAdModal now guards
+     against the checkout script's own DOM/environment requirements
+     (a body to attach to, `window.Razorpay` actually existing after
+     load) and surfaces a clear in-modal error instead of letting an
+     exception escape uncaught. Note: Razorpay Checkout needs to run
+     in the real top-level page — if you test it inside a sandboxed
+     preview iframe (common in some dev/live-preview tools) the
+     checkout script itself may throw a cross-origin "Script error."
+     that this app cannot see the details of or suppress; this is a
+     property of the hosting/preview environment, not a bug in this
+     file, and will not occur once deployed to your real domain.
 
-   DEPLOYMENT NOTE (SPA rewrites for the new URL routing):
-   - Netlify: add a file called `_redirects` (no extension) to your
-     publish folder with this single line:
-         /*    /index.html   200
-   - Vercel: add a `vercel.json` with:
-         { "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
-   - Apache: add a `.htaccess` in the same folder as index.html:
-         RewriteEngine On
-         RewriteBase /
-         RewriteRule ^index\.html$ - [L]
-         RewriteCond %{REQUEST_FILENAME} !-f
-         RewriteCond %{REQUEST_FILENAME} !-d
-         RewriteRule . /index.html [L]
-   - Nginx:
-         location / { try_files $uri /index.html; }
-   Without one of these, only "/" will load correctly when visited
-   directly — in-app navigation (clicking links) will still work
-   fine either way, since that never leaves the page.
+   CARRIED OVER FROM v12 — SPONSORED / FEATURED ADVERTISEMENTS:
+   - Businesses can pay to "feature" (sponsor) one of their own active
+     advertisements so it is boosted to the top of Browse Jobs / Home
+     listings for a fixed period. Plans: 1 month (₹100), 3 months
+     (₹200), 6 months (₹300), 1 year (₹500).
+   - Payment is taken directly in the browser via Razorpay Checkout
+     (see loadRazorpayCheckout() / SponsorAdModal below) — nothing
+     about card/UPI details ever touches our backend. Once Razorpay
+     confirms payment client-side, the frontend calls the
+     'createSponsorship' backend action with the resulting
+     razorpay_payment_id, the chosen plan, and the ad id; the backend
+     simply records "this ad is sponsored until <date>" — it does not
+     process or verify the payment itself (see Code.gs v5).
+   - Sponsorship data lives entirely in a brand-new "Sponsorships"
+     sheet (see Code.gs) — no existing sheet or column was touched or
+     migrated for this feature.
+   - Every ad object returned by the backend also carries `sponsored`
+     (bool) and `sponsoredUntil` (ISO date or null). filterAndSortAds()
+     (used by Browse Jobs AND the Home page) always bubbles
+     currently-sponsored ads to the front of the list, in random order
+     (reshuffled per page load) so multiple sponsors rotate fairly,
+     while still respecting the current area/radius filter — i.e. a
+     sponsored ad still only appears "on top" among the results that
+     already match the visitor's search/location. Non-sponsored ads
+     underneath keep their normal sort order (distance / newest /
+     salary) exactly as before.
+   - AdCard shows a "⭐ Featured" ribbon for sponsored ads. Ad owners
+     see a "⭐ Sponsor this ad" action (AdDetailsPage owner toolbar and
+     MyAdsTab) that opens SponsorAdModal; if the ad is already
+     sponsored they instead see "Featured until <date>".
 
-   NEW IN v6:
-   - "Browse Jobs" and "Find Workers" no longer show a permanent
-     filter sidebar. Filters now live inside a hamburger-triggered
-     slide-in drawer, opened with a "☰ Filters" button next to the
-     page heading — same filter fields, just tucked away until
-     needed, so results get the full width and the page feels
-     less cluttered.
-   - "My Dashboard" section switcher (My posted ads / Saved
-     advertisements / My reports / My Profile) now also opens
-     from a "☰ Menu" hamburger drawer instead of a row of tabs.
-   - My Dashboard now opens on "Saved advertisements" by default
-     for worker-only accounts (who can't post ads), and on
-     "My posted ads" for business/both/admin accounts.
+   CARRIED OVER FROM v11:
+   - PRIVACY: On the "Find Workers" listing cards (WorkerCard), the
+     worker's phone number is only shown to logged-in visitors.
+   - DEFAULT_CATEGORY_IMAGE: the Home page's "Popular Job Categories"
+     row always shows a photo for every category tile, even brand-new
+     custom worker categories, via a generic fallback photo.
+
+   CARRIED OVER FROM v10:
+   - "Teacher / Professor / Tutor" worker category; "Education" and
+     "Homekeeper" business types.
+   - DEFAULT PLACEHOLDER PHOTOS for ads with no uploaded photos
+     (getDefaultAdImage / getAdDisplayImages).
+
+   CARRIED OVER FROM v9:
+   - Custom Business Type on "Post a Requirement" ("Other" + free text),
+     mirroring the existing Worker Category "Other" pattern.
+
+   CARRIED OVER FROM v8:
+   - "📥 Download App" button in navbar + footer.
+
+   CARRIED OVER FROM v7:
+   - Real URL routing via the browser History API.
+   DEPLOYMENT NOTE (SPA rewrites for the URL routing):
+   - Netlify: `_redirects` file with:  /*    /index.html   200
+   - Vercel: vercel.json rewrites -> /index.html
+   - Apache: .htaccess rewrite rules -> index.html
+   - Nginx:  location / { try_files $uri /index.html; }
+
+   CARRIED OVER FROM v6:
+   - Mobile filter/menu drawers for Browse Jobs, Find Workers, My Dashboard.
 
    CARRIED OVER FROM v5:
-   - Worker profile: phone number is now MANDATORY for worker/both
-     accounts (enforced client-side in "My Profile" and server-side in
-     updateWorkerProfile), and is shown on every worker card and on the
-     worker's public profile page so businesses in "Find Workers" can
-     always reach them.
-   - Worker profile: optional public email field (separate from the
-     login email), optional profile photo (shown as a circular avatar;
-     falls back to a generic person icon when not set), and optional
-     multi-image "resume" upload (photos of a resume / certificates /
-     ID proof) — all via the same Cloudinary unsigned upload used for
-     advertisement photos.
-   - Worker profile page and Worker Browse cards now show a
-     "Get Directions" button / the worker's phone number next to a
-     WhatsApp button, mirroring the advertisement details page.
-   - Advertisement details page now shows the contact phone number as
-     a tappable "Call" link right next to the WhatsApp button.
-   - Footer buttons are now all functional: Privacy Policy, Terms of
-     Service and Cookie Policy open an in-app modal with real content,
-     and a new "Contact Developer" / "About Us" action opens a modal
-     with the developer's logo, email and website.
+   - Mandatory worker phone number; optional public email, profile
+     photo, resume images; "Get Directions" / Call buttons.
 
    CARRIED OVER FROM v4:
-   - Three-role permission model, same login for everyone (worker /
-     business / both / admin). Posting is gated with canPostAds(user)
-     in the nav, in routing, and server-side in createAd.
-   - "My Profile" requires a dropped map pin before saving a
-     worker/both profile (an address alone is not enough for
-     "Workers near you" to find you).
-   - Admin can suspend/restore a worker or business profile.
-   - Workers have a real location (lat/lng/address), settable from
-     "My Profile". Workers Browse page mirrors the Jobs Browse page:
-     location banner, radius filter, nearest-first sort, distance chip.
-   - Worker profiles (create/edit, browse, view + review)
-   - Reviews & star ratings (businesses <-> workers)
-   - WhatsApp "Apply Now" deep link
-   - Urgent / "Hiring Today" jobs
-   - Salary benchmarking hint on the post form
-   - Verified badge (admin-controlled)
-   - Referral codes
-   - EN / Hindi / Punjabi language switch
+   - Three-role permission model (worker / business / both / admin).
+   - Admin suspend/restore, worker location + distance search, reviews
+     & ratings, WhatsApp "Apply Now", urgent jobs, salary benchmarking,
+     verified badge, referral codes, EN/Hindi/Punjabi language switch.
 
    IMAGE UPLOAD ("Unknown API key" error):
    - Image uploads go straight from the browser to Cloudinary using
-     CONFIG.CLOUDINARY below. "Unknown API key" / "Unknown API key" is
-     a Cloudinary-side error, not an Apps Script error — it means
-     cloudName and/or uploadPreset don't match a real Cloudinary
-     account, OR the upload preset exists but is not set to
-     "Unsigned" (Cloudinary Dashboard > Settings > Upload > Upload
-     presets). Fix by replacing BOTH values below with your own
-     Cloudinary cloud name and an unsigned upload preset you created.
+     CONFIG.CLOUDINARY below. "Unknown API key" means cloudName and/or
+     uploadPreset don't match a real Cloudinary account, OR the preset
+     isn't set to "Unsigned". Fix by replacing BOTH values below.
    ========================================================== */
    import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo,} from 'react';
    import './App.css';
@@ -135,26 +120,45 @@
    // CONFIG
    // ------------------------------------------------------------
    const CONFIG = {
-     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzIBikVtx2QBDPnb4Hou8RrLFADWKK7Iswy1ArxkXeDidH0vgs8XQQLBVwAYWSQO5Ys/exec',
+     APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwVZZp8ZrtgdPel9T3RSmigm3cN4Z5YBkMc_HYF-ydH1cuViPEwFw50eu18-izw3Mh3/exec',
      CLOUDINARY: {
        // TODO: replace with YOUR Cloudinary cloud name (Dashboard, top-left)
        // and an UNSIGNED upload preset you created for this project.
-       // The current values below are almost certainly wrong for your
-       // account, which is why uploads fail with "Unknown API key".
        cloudName: 'dm9gg8yss',
        uploadPreset: 'images'
-     }
+     },
+     // "📥 Download App" button (navbar + footer) opens this URL in a new
+     // tab. Built from your Google Drive share link — swap the id below
+     // if you ever replace the file. Requires the Drive file's sharing
+     // to be set to "Anyone with the link" to download directly.
+     APP_DOWNLOAD_URL: 'https://drive.google.com/uc?export=download&id=13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2',
+     // Razorpay key id used ONLY in the browser to open the Razorpay
+     // Checkout widget for sponsorship payments. This is a public
+     // "key id" (not a secret). Replace with your own live/test key id
+     // from the Razorpay dashboard.
+     RAZORPAY_KEY_ID: 'rzp_live_7EQ4tHC0xs8rBy'
    };
+   
+   // Sponsorship / "Featured Advertisement" plans. Kept as a plain array
+   // so pricing/duration can be tweaked in one place; the backend
+   // (Code.gs SPONSORSHIP_PLANS) mirrors these ids and prices — if you
+   // change one, change the other to match.
+   const SPONSORSHIP_PLANS = [
+     { id: '1m', label: '1 Month', days: 30, price: 1 },
+     { id: '3m', label: '3 Months', days: 90, price: 200 },
+     { id: '6m', label: '6 Months', days: 180, price: 300 },
+     { id: '1y', label: '1 Year', days: 365, price: 500 }
+   ];
    
    const WORKER_CATEGORIES = [
      'Skilled Labour', 'Unskilled Labour', 'Driver', 'Electrician', 'Plumber',
      'Mason', 'Welder', 'Machine Operator', 'Helper', 'Security Guard',
      'Tailor / Stitching', 'Packing Staff', 'Delivery Staff', 'Housekeeping',
-     'Cook / Kitchen Staff', 'Other'
+     'Cook / Kitchen Staff', 'Teacher / Professor / Tutor', 'Other'
    ];
    const BUSINESS_TYPES = [
      'Factory', 'Shop / Retail', 'Restaurant / Hotel', 'Construction Site',
-     'Warehouse', 'Workshop', 'Office', 'Salon', 'Other'
+     'Warehouse', 'Workshop', 'Office', 'Salon', 'Education', 'Homekeeper', 'Other'
    ];
    const REPORT_REASONS = [
      'Fake — this business/job does not exist',
@@ -166,8 +170,6 @@
    ];
    const RADIUS_OPTIONS = [2, 5, 10, 20, 50];
    const HOME_DEFAULT_RADIUS = 10;
-   // Home page now shows only 6 Popular Job Categories (single line)
-   // and only 6 Recently Posted Requirements (3x2 grid) — see v7 notes above.
    const HOME_MAX_RESULTS = 6;
    const HOME_MAX_CATEGORIES = 6;
    const DEFAULT_CENTER = { lat: 30.9010, lng: 75.8573 };
@@ -178,25 +180,28 @@
      { value: 'both', label: 'Both' }
    ];
    
-   // Icons for worker categories
    const CATEGORY_ICONS = {
      'Skilled Labour': '🔧', 'Unskilled Labour': '💪', 'Driver': '🚗', 'Electrician': '⚡',
      'Plumber': '🔧', 'Mason': '🏗️', 'Welder': '🔥', 'Machine Operator': '🔩',
      'Helper': '🤝', 'Security Guard': '🛡️', 'Tailor / Stitching': '🧵', 'Packing Staff': '📦',
-     'Delivery Staff': '🛵', 'Housekeeping': '🧹', 'Cook / Kitchen Staff': '👨‍🍳', 'Other': '📋'
+     'Delivery Staff': '🛵', 'Housekeeping': '🧹', 'Cook / Kitchen Staff': '👨‍🍳',
+     'Teacher / Professor / Tutor': '📚',
+     'Other': '📋'
    };
    
-   // Enhanced category images for hero section
    const CATEGORY_IMAGES = {
-     'Skilled Labour': 'https://images.unsplash.com/photo-1581091226033-d5c48150dbaa?w=400&h=300&fit=crop',
-     'Driver': 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=400&h=300&fit=crop',
-     'Electrician': 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=400&h=300&fit=crop',
-     'Plumber': 'https://images.unsplash.com/photo-1607472586893-edb57bcf0e39?w=400&h=300&fit=crop',
-     'Mason': 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=400&h=300&fit=crop',
-     'Welder': 'https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=400&h=300&fit=crop',
-     'Security Guard': 'https://images.unsplash.com/photo-1582139329536-e7284fece509?w=400&h=300&fit=crop',
-     'Cook / Kitchen Staff': 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&h=300&fit=crop'
+     'Skilled Labour': 'https://digitallabourchowk.com/wp-content/uploads/2024/09/SM916619-1024x683.jpg',
+     'Driver': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlSwHhlKK2UPSAOzRpYwzQ7LLp5EqwWiorrK1KjNuUm0QR1m9S7GoZsQo&s=10',
+     'Electrician': 'https://thumbs.dreamstime.com/b/young-electrical-engineer-protective-workware-repairing-connecting-wires-using-screw-driver-workplace-young-247556897.jpg',
+     'Plumber': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQhHjszVTF_q_AjyXl0NWt19u12R5tSDItvXjS3l15i2gjfwhqdirT47Jdc&s=10',
+     'Mason': 'https://t3.ftcdn.net/jpg/00/57/19/90/360_F_57199075_8qPTCvJw8pZy3ZSxut230b3lOCLlogEm.jpg',
+     'Welder': 'https://media.istockphoto.com/id/835302104/photo/preparing-to-continue-welding-metals.jpg?s=612x612&w=0&k=20&c=845ayUPdfzsS_z-TI-ZeAJXj7po-0qb2Xn4TIGkehYo=',
+     'Security Guard': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwHsnrqLfEIoROzMQ4ylJHkJS2c8q9NYYp7LNSzQYdl7EbB2mPG9ezWKA7&s=10',
+     'Cook / Kitchen Staff': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSfcow0HnkKf7cd2uj4wlSYfiP3SuV18FTOhDSj0Z3BnA&s=10',
+     'Teacher / Professor / Tutor': 'https://img.magnific.com/premium-photo/teachers-day-india-handsome-indian-man-teaching_548646-54570.jpg?w=360'
    };
+   
+   const DEFAULT_CATEGORY_IMAGE = 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=600&h=400&fit=crop';
    
    // ------------------------------------------------------------
    // I18N — English / Hindi / Punjabi
@@ -224,7 +229,8 @@
        report: '🚩 Report this advertisement', reviews: 'Reviews', writeReview: 'Write a review',
        verified: 'Verified', workersNearYou: 'Workers near you', availableNow: 'Available now',
        viewProfile: 'View profile', myProfile: 'My Profile', referral: 'Your referral code',
-       postAJob: 'Post a worker requirement', salaryBenchmark: 'Typical salary for this category'
+       postAJob: 'Post a worker requirement', salaryBenchmark: 'Typical salary for this category',
+       downloadApp: '📥 Download App'
      },
      hi: {
        home: 'होम', browseJobs: 'नौकरियां देखें', postRequirement: 'ज़रूरत पोस्ट करें',
@@ -242,7 +248,8 @@
        report: '🚩 रिपोर्ट करें', reviews: 'समीक्षाएं', writeReview: 'समीक्षा लिखें',
        verified: 'सत्यापित', workersNearYou: 'आपके पास के कामगार', availableNow: 'अभी उपलब्ध',
        viewProfile: 'प्रोफ़ाइल देखें', myProfile: 'मेरी प्रोफ़ाइल', referral: 'आपका रेफरल कोड',
-       postAJob: 'कामगार की जरूरत पोस्ट करें', salaryBenchmark: 'इस श्रेणी के लिए औसत वेतन'
+       postAJob: 'कामगार की जरूरत पोस्ट करें', salaryBenchmark: 'इस श्रेणी के लिए औसत वेतन',
+       downloadApp: '📥 ऐप डाउनलोड करें'
      },
      pa: {
        home: 'ਹੋਮ', browseJobs: 'ਨੌਕਰੀਆਂ ਵੇਖੋ', postRequirement: 'ਲੋੜ ਪੋਸਟ ਕਰੋ',
@@ -260,7 +267,8 @@
        report: '🚩 ਰਿਪੋਰਟ ਕਰੋ', reviews: 'ਸਮੀਖਿਆਵਾਂ', writeReview: 'ਸਮੀਖਿਆ ਲਿਖੋ',
        verified: 'ਪ੍ਰਮਾਣਿਤ', workersNearYou: 'ਤੁਹਾਡੇ ਨੇੜੇ ਦੇ ਕਾਮੇ', availableNow: 'ਹੁਣ ਉਪਲਬਧ',
        viewProfile: 'ਪ੍ਰੋਫਾਈਲ ਵੇਖੋ', myProfile: 'ਮੇਰੀ ਪ੍ਰੋਫਾਈਲ', referral: 'ਤੁਹਾਡਾ ਰੈਫਰਲ ਕੋਡ',
-       postAJob: 'ਕਾਮੇ ਦੀ ਲੋੜ ਪੋਸਟ ਕਰੋ', salaryBenchmark: 'ਇਸ ਸ਼੍ਰੇਣੀ ਲਈ ਔਸਤ ਤਨਖਾਹ'
+       postAJob: 'ਕਾਮੇ ਦੀ ਲੋੜ ਪੋਸਟ ਕਰੋ', salaryBenchmark: 'ਇਸ ਸ਼੍ਰੇਣੀ ਲਈ ਔਸਤ ਤਨਖਾਹ',
+       downloadApp: '📥 ਐਪ ਡਾਊਨਲੋਡ ਕਰੋ'
      }
    };
    
@@ -301,6 +309,40 @@
      return data.secure_url;
    }
    
+   // Loads the Razorpay Checkout script exactly once (the same script
+   // tag Razorpay's own docs / reference storefronts use:
+   // https://checkout.razorpay.com/v1/checkout.js). Since this is a
+   // plain React app with no <script> tags of its own, we inject it on
+   // first use rather than requiring an index.html change.
+   //
+   // Hardened (v13): explicitly checks that `document` / `document.body`
+   // exist before trying to inject the script (guards against SSR/odd
+   // embed contexts), and clears the cached promise on failure so a
+   // later retry (e.g. after the person's connection comes back) isn't
+   // permanently stuck on a rejected promise.
+   let razorpayScriptPromise = null;
+   function loadRazorpayCheckout() {
+     if (typeof window !== 'undefined' && window.Razorpay) return Promise.resolve(true);
+     if (typeof document === 'undefined' || !document.body) {
+       return Promise.reject(new Error('Payment widget is unavailable in this environment.'));
+     }
+     if (razorpayScriptPromise) return razorpayScriptPromise;
+     razorpayScriptPromise = new Promise((resolve, reject) => {
+       const script = document.createElement('script');
+       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+       script.onload = () => {
+         if (window.Razorpay) resolve(true);
+         else reject(new Error('Payment widget loaded but did not initialize. Please try again.'));
+       };
+       script.onerror = () => reject(new Error('Could not load the payment widget. Check your connection and try again.'));
+       document.body.appendChild(script);
+     }).catch((err) => {
+       razorpayScriptPromise = null; // allow a future retry instead of staying rejected forever
+       throw err;
+     });
+     return razorpayScriptPromise;
+   }
+   
    // ------------------------------------------------------------
    // UTILITIES
    // ------------------------------------------------------------
@@ -326,14 +368,75 @@
      return Math.max(...nums.map(Number));
    }
    
+   // Simple Fisher-Yates shuffle, used to rotate multiple sponsored /
+   // featured ads fairly instead of always showing them in the same order.
+   function shuffleArray(arr) {
+     const a = arr.slice();
+     for (let i = a.length - 1; i > 0; i--) {
+       const j = Math.floor(Math.random() * (i + 1));
+       [a[i], a[j]] = [a[j], a[i]];
+     }
+     return a;
+   }
+   
    function categoryOf(ad) {
      return (ad.workerCategory === 'Other' && ad.customCategory) ? ad.customCategory : (ad.displayCategory || ad.workerCategory);
+   }
+   
+   // Resolves to the business's own custom label when businessType is
+   // 'Other', otherwise falls back to the server's displayBusinessType
+   // (or the raw businessType if the ad predates this field).
+   function businessTypeOf(ad) {
+     return (ad.businessType === 'Other' && ad.customBusinessType)
+       ? ad.customBusinessType
+       : (ad.displayBusinessType || ad.businessType);
    }
    
    function buildCategoryOptions(ads) {
      const set = new Set(WORKER_CATEGORIES.filter((c) => c !== 'Other'));
      (ads || []).forEach((a) => { if (categoryOf(a)) set.add(categoryOf(a)); });
      return Array.from(set).sort();
+   }
+   
+   // Mirrors buildCategoryOptions() above, but for Business Type —
+   // starts from the preset BUSINESS_TYPES list (minus "Other") and
+   // adds in any custom business types that have actually been
+   // posted, so the Browse Jobs filter dropdown always reflects what's
+   // really out there.
+   function buildBusinessTypeOptions(ads) {
+     const set = new Set(BUSINESS_TYPES.filter((c) => c !== 'Other'));
+     (ads || []).forEach((a) => { if (businessTypeOf(a)) set.add(businessTypeOf(a)); });
+     return Array.from(set).sort();
+   }
+   
+   // ------------------------------------------------------------
+   // DEFAULT PLACEHOLDER IMAGES
+   // ------------------------------------------------------------
+   const DEFAULT_BUSINESS_TYPE_IMAGES = {
+     'Factory': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIvRfcZIue1oEYsghRQQJotjDWnVSs8fVdaIXmv5LHhkSS6n15VSpvoTWB&s=10',
+     'Shop / Retail': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQsy6r2sOQeFTUJVg10cmnW6WENOBNQHQsDJEVyt29ZxA&s=10',
+     'Restaurant / Hotel': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600&h=400&fit=crop',
+     'Construction Site': 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=600&h=400&fit=crop',
+     'Warehouse': 'https://storage.googleapis.com/realtyplusmag-news-photo/news-photo/115241.Page-24.jpg',
+     'Workshop': 'https://i.postimg.cc/qMGg2X1J/Whats_App_Image_2026_01_30_at_17_48_42.jpg',
+     'Office': 'https://img.magnific.com/premium-photo/professional-working-person_170153-1259.jpg?semt=ais_hybrid&w=740&q=80',
+     'Salon': 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&h=400&fit=crop',
+     'Education': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcREjYDDVF5S4wiFqJpCqEoK8qwDmgmmIt8xU3ryahgHZJ5kGqxrX8BTWTQ&s=10',
+     'Homekeeper': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQajR9N_BAr-IrdhLkp64zxeu4R6Q4TwMYi71RXuPYHZre6Lt-kOX_1bhmL&s=10'
+   };
+   const DEFAULT_FALLBACK_AD_IMAGE = 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=600&h=400&fit=crop';
+   
+   function getDefaultAdImage(ad) {
+     const bt = businessTypeOf(ad);
+     if (bt && DEFAULT_BUSINESS_TYPE_IMAGES[bt]) return DEFAULT_BUSINESS_TYPE_IMAGES[bt];
+     const cat = categoryOf(ad);
+     if (cat && CATEGORY_IMAGES[cat]) return CATEGORY_IMAGES[cat];
+     return DEFAULT_FALLBACK_AD_IMAGE;
+   }
+   
+   function getAdDisplayImages(ad) {
+     if (ad.images && ad.images.length > 0) return ad.images;
+     return [getDefaultAdImage(ad)];
    }
    
    // Generic — works for any object list with locationLat/locationLng fields
@@ -358,10 +461,7 @@
      return `https://wa.me/${digits}?text=${text}`;
    }
    
-   // Opens Google Maps directions to the given lat/lng. Tries to use the
-   // visitor's current position as the origin (silently falls back to a
-   // destination-only link if permission is denied or unavailable) —
-   // shared by the advertisement details page and the worker profile page.
+   // Opens Google Maps directions to the given lat/lng.
    function openDirectionsToCoords(lat, lng, onDone) {
      if (lat == null || lng == null) { onDone && onDone(false); return; }
      const go = (originStr) => {
@@ -386,16 +486,11 @@
    // ------------------------------------------------------------
    // ROLE / PERMISSION HELPERS
    // ------------------------------------------------------------
-   // Posting worker requirements is a business-side action. A pure
-   // 'worker' account can't post; 'business' and 'both' can; admins can
-   // always do everything a normal ('both') account can, in addition to
-   // moderation.
    function canPostAds(user) {
      if (!user) return false;
      if (user.role === 'admin') return true;
      return user.userType === 'business' || user.userType === 'both';
    }
-   
    
    const EMPTY_FILTERS = {
      search: '', category: '', businessType: '', radius: 'all',
@@ -414,7 +509,7 @@
          `${a.jobTitle} ${a.businessName} ${a.description} ${a.skills} ${categoryOf(a)}`.toLowerCase().includes(q));
      }
      if (filters.category) list = list.filter((a) => categoryOf(a) === filters.category);
-     if (filters.businessType) list = list.filter((a) => a.businessType === filters.businessType);
+     if (filters.businessType) list = list.filter((a) => businessTypeOf(a) === filters.businessType);
      if (filters.minSalary) list = list.filter((a) => parseSalaryNumber(a.salary) >= Number(filters.minSalary));
      if (filters.experience) list = list.filter((a) => (a.experience || '').toLowerCase().includes(filters.experience.toLowerCase()));
      if (filters.education) list = list.filter((a) => (a.education || '').toLowerCase().includes(filters.education.toLowerCase()));
@@ -432,7 +527,18 @@
        if (sortBy === 'salary') return parseSalaryNumber(b.salary) - parseSalaryNumber(a.salary);
        return new Date(b.postedAt) - new Date(a.postedAt);
      });
-     return list;
+   
+     // "Featured Advertisements" — currently-sponsored ads are bubbled to
+     // the very front of whatever list this is (Browse Jobs, Home page
+     // nearby/urgent lists, etc.), in shuffled order so that when several
+     // businesses are sponsoring at once they rotate fairly instead of
+     // always showing in the same order. This runs AFTER all the
+     // filtering/sorting above, so a sponsored ad only ever appears "on
+     // top" among results that already match the visitor's search,
+     // category and area/radius — sponsorship never bypasses filters.
+     const sponsored = shuffleArray(list.filter((a) => a.sponsored));
+     const rest = list.filter((a) => !a.sponsored);
+     return [...sponsored, ...rest];
    }
    
    // Worker-profile equivalent of filterAndSortAds — mirrors the same
@@ -474,25 +580,7 @@
    
    // ------------------------------------------------------------
    // ROUTER — plain History API based path routing (no library, no
-   // build step). Translates between an in-app {page, params} route
-   // and a real, shareable URL path, so a deployment at e.g.
-   // https://rojgararea.online/ behaves like:
-   //   /                 -> home
-   //   /browse           -> browse (Browse Jobs listing)
-   //   /browse/:adId     -> details (Advertisement details)
-   //   /workers          -> workers (Find Workers listing)
-   //   /workers/:userId  -> worker-details (Worker profile)
-   //   /post             -> post (Post a requirement)
-   //   /edit/:adId       -> edit (Edit a requirement)
-   //   /dashboard        -> dashboard (My Dashboard)
-   //   /admin            -> admin (Admin Dashboard)
-   //   /login            -> login
-   //   /register         -> register
-   // Anything else falls back to home. Query-string filters (e.g. the
-   // ones passed from the homepage's category cards) are kept in
-   // in-memory route.params only — they aren't encoded into the URL —
-   // so a browser refresh or a shared link resets filters but always
-   // lands on the right page/record.
+   // build step).
    // ------------------------------------------------------------
    function pathForRoute(page, params) {
      params = params || {};
@@ -508,6 +596,10 @@
        case 'admin': return '/admin';
        case 'login': return '/login';
        case 'register': return '/register';
+       case 'privacy': return '/privacy-policy';
+       case 'terms': return '/terms-of-service';
+       case 'cookies': return '/cookie-policy';
+       case 'contact-developer': return '/contact-developer';
        default: return '/';
      }
    }
@@ -532,6 +624,10 @@
        case 'admin': return { page: 'admin', params: {} };
        case 'login': return { page: 'login', params: {} };
        case 'register': return { page: 'register', params: {} };
+       case 'privacy-policy': return { page: 'privacy', params: {} };
+       case 'terms-of-service': return { page: 'terms', params: {} };
+       case 'cookie-policy': return { page: 'cookies', params: {} };
+       case 'contact-developer': return { page: 'contact-developer', params: {} };
        default: return { page: 'home', params: {} };
      }
    }
@@ -671,6 +767,19 @@
      );
    }
    
+   // Small "⭐ Featured" ribbon shown on sponsored ad cards / details pages.
+   function FeaturedBadge({ small }) {
+     return (
+       <span
+         className="badge"
+         title="This advertisement is featured"
+         style={{ fontSize: small ? 11 : 12, background: '#fff4d6', color: '#8a6400', border: '1px solid #f0d27a' }}
+       >
+         ⭐ Featured
+       </span>
+     );
+   }
+   
    function StarRating({ value, count, size }) {
      const v = Math.round(Number(value) || 0);
      const stars = [1, 2, 3, 4, 5].map((i) => (i <= v ? '★' : '☆'));
@@ -722,8 +831,6 @@
    
    // ------------------------------------------------------------
    // FILTER / MENU DRAWER — reusable hamburger slide-in panel.
-   // Used by Browse Jobs ("☰ Filters"), Find Workers ("☰ Filters"),
-   // and My Dashboard ("☰ Menu").
    // ------------------------------------------------------------
    function FilterDrawer({ open, onClose, title, children, side = 'left' }) {
      useEffect(() => {
@@ -785,8 +892,6 @@
        </div>
      );
    }
-
-   
    
    // ------------------------------------------------------------
    // MAP VIEW
@@ -987,6 +1092,110 @@
    }
    
    // ==============================================================
+   // SPONSOR / FEATURE AN AD
+   // ==============================================================
+   // Lets an ad's owner pick a plan, pay via Razorpay Checkout right in
+   // the browser, and — only once Razorpay confirms success — records
+   // the sponsorship on the backend via 'createSponsorship'. The
+   // backend never sees card/UPI details, only the resulting
+   // razorpay_payment_id.
+   function SponsorAdModal({ ad, onClose, onSponsored }) {
+     const { user } = useAuth();
+     const toast = useToast();
+     const [planId, setPlanId] = useState(SPONSORSHIP_PLANS[0].id);
+     const [busy, setBusy] = useState(false);
+     const [error, setError] = useState(null);
+   
+     const plan = SPONSORSHIP_PLANS.find((p) => p.id === planId) || SPONSORSHIP_PLANS[0];
+   
+     const pay = async () => {
+       setBusy(true); setError(null);
+       try {
+         await loadRazorpayCheckout();
+         if (!window.Razorpay) throw new Error('Payment widget failed to load.');
+   
+         const rzp = new window.Razorpay({
+           key: CONFIG.RAZORPAY_KEY_ID,
+           amount: plan.price * 100, // paise
+           currency: 'INR',
+           name: 'Rojgar AREA',
+           description: `Feature "${ad.jobTitle}" — ${plan.label}`,
+           prefill: { name: user.name, email: user.email, contact: user.phone || '' },
+           theme: { color: '#1F3B23' },
+           handler: async function (response) {
+             try {
+               await apiCall('createSponsorship', {
+                 adId: ad.adId,
+                 postedBy: user.userId,
+                 plan: plan.id,
+                 amount: plan.price,
+                 paymentId: response.razorpay_payment_id
+               });
+               toast(`"${ad.jobTitle}" is now featured for ${plan.label.toLowerCase()}!`, 'success');
+               onSponsored && onSponsored();
+               onClose();
+             } catch (err) {
+               setError('Payment succeeded but saving the feature failed: ' + err.message + '. Contact support with payment id ' + response.razorpay_payment_id + '.');
+             } finally {
+               setBusy(false);
+             }
+           },
+           modal: {
+             ondismiss: function () {
+               setBusy(false);
+             }
+           }
+         });
+         rzp.on('payment.failed', function () {
+           setError('Payment failed or was cancelled. Please try again.');
+           setBusy(false);
+         });
+         rzp.open();
+       } catch (err) {
+         // Any failure to load/construct/open the Razorpay widget itself
+         // (as opposed to a failed payment inside it) lands here instead
+         // of escaping as an uncaught error.
+         setError(err && err.message ? err.message : 'Could not open the payment window. Please try again.');
+         setBusy(false);
+       }
+     };
+   
+     return (
+       <div className="modal-overlay" onClick={onClose}>
+         <div className="modal" onClick={(e) => e.stopPropagation()}>
+           <div className="modal-head">
+             <h2>⭐ Feature this advertisement</h2>
+             <button className="modal-close" onClick={onClose}>✕</button>
+           </div>
+           <p style={{ color: 'var(--text-mute)', fontSize: 14, marginBottom: 14 }}>
+             Featured ads are boosted to the top of Browse Jobs and Home page results for everyone
+             searching in your ad's area, for the duration you choose below. If more than one ad is
+             featured at the same time, they rotate fairly at the top.
+           </p>
+   
+           <div className="radio-group">
+             {SPONSORSHIP_PLANS.map((p) => (
+               <label key={p.id} className={`radio-option ${planId === p.id ? 'selected' : ''}`}>
+                 <input type="radio" name="sponsor-plan" checked={planId === p.id} onChange={() => setPlanId(p.id)} />
+                 {p.label} — ₹{p.price}
+               </label>
+             ))}
+           </div>
+   
+           {error && <div className="error-box" style={{ marginTop: 12, marginBottom: 12 }}>{error}</div>}
+   
+           <button className="btn btn-primary btn-block" disabled={busy} onClick={pay} style={{ marginTop: 8 }}>
+             {busy ? 'Opening payment…' : `Pay ₹${plan.price} & feature for ${plan.label.toLowerCase()}`}
+           </button>
+           <p style={{ fontSize: 11, color: 'var(--text-mute)', marginTop: 10, textAlign: 'center' }}>
+             Payment is handled securely by Razorpay. Rojgar AREA never sees your card or UPI details.
+           </p>
+         </div>
+       </div>
+     );
+   }
+   
+   // ==============================================================
    // APP ROOT
    // ==============================================================
    function App() {
@@ -996,9 +1205,6 @@
      const [lang, setLang] = useState(() => {
        try { return localStorage.getItem('kb_lang') || 'en'; } catch (e) { return 'en'; }
      });
-     // Route state is seeded from the real URL on first load, so a
-     // direct visit / refresh / bookmark of e.g. /browse/<adId> opens
-     // straight to that page instead of always landing on Home.
      const [route, setRoute] = useState(() => {
        try { return routeFromPath(window.location.pathname); } catch (e) { return { page: 'home', params: {} }; }
      });
@@ -1007,9 +1213,6 @@
    
      useEffect(() => { geo.request(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
    
-     // Keep in-app route state in sync with the browser's Back/Forward
-     // buttons (popstate fires on those, but not on our own pushState
-     // calls from navigate() below).
      useEffect(() => {
        const onPopState = () => {
          setRoute(routeFromPath(window.location.pathname));
@@ -1100,7 +1303,21 @@
      switch (route.page) {
        case 'home': return <HomePage navigate={navigate} />;
        case 'browse': return <AdvertisementsPage navigate={navigate} initialFilters={route.params.filters} />;
-       case 'details': return <AdDetailsPage adId={route.params.adId} navigate={navigate} />;
+       case 'details':
+         if (!user) {
+           return (
+             <LoginPage
+               navigate={navigate}
+               initialMode="login"
+               redirectTo={{
+                 page: 'details',
+                 params: { adId: route.params.adId },
+                 message: 'Log in to view the full details of this advertisement and contact the business directly.'
+               }}
+             />
+           );
+         }
+         return <AdDetailsPage adId={route.params.adId} navigate={navigate} />;
        case 'post':
          if (!user) return <LoginPage navigate={navigate} initialMode="login" redirectTo="post" />;
          if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
@@ -1112,9 +1329,27 @@
        case 'dashboard': return user ? <UserDashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="dashboard" />;
        case 'admin': return (user && user.role === 'admin') ? <AdminDashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="admin" />;
        case 'workers': return <WorkersBrowsePage navigate={navigate} />;
-       case 'worker-details': return <WorkerProfileViewPage userId={route.params.userId} navigate={navigate} />;
+       case 'worker-details':
+         if (!user) {
+           return (
+             <LoginPage
+               navigate={navigate}
+               initialMode="login"
+               redirectTo={{
+                 page: 'worker-details',
+                 params: { userId: route.params.userId },
+                 message: "Log in to view this worker's full profile and contact them directly."
+               }}
+             />
+           );
+         }
+         return <WorkerProfileViewPage userId={route.params.userId} navigate={navigate} />;
        case 'login': return <LoginPage navigate={navigate} initialMode="login" redirectTo={route.params.redirectTo} />;
        case 'register': return <LoginPage navigate={navigate} initialMode="register" redirectTo={route.params.redirectTo} />;
+       case 'privacy': return <LegalPage contentKey="privacy" navigate={navigate} />;
+       case 'terms': return <LegalPage contentKey="terms" navigate={navigate} />;
+       case 'cookies': return <LegalPage contentKey="cookies" navigate={navigate} />;
+       case 'contact-developer': return <ContactDeveloperPage navigate={navigate} />;
        default: return <HomePage navigate={navigate} />;
      }
    }
@@ -1138,6 +1373,7 @@
          'Rojgar AREA is a platform that lets local businesses post worker requirements and lets job seekers browse and apply to them directly. We are not a party to any employment agreement made between a business and a worker.',
          'Users agree to post accurate information. Misleading, fraudulent, or discriminatory listings may be reported, reviewed, and taken down by our admin team.',
          'Contact details shared on the platform (phone numbers, WhatsApp) are provided by users at their own discretion for the purpose of being contacted about job opportunities.',
+         'Featured/sponsored advertisements are a paid promotional placement only — they do not imply endorsement, verification, or any guarantee of hiring outcomes.',
          'We reserve the right to suspend or remove accounts and listings that violate these terms or misuse the platform.'
        ]
      },
@@ -1151,32 +1387,42 @@
      }
    };
    
-   function LegalModal({ contentKey, onClose }) {
-     const content = LEGAL_CONTENT[contentKey];
-     if (!content) return null;
-     return (
-       <div className="modal-overlay" onClick={onClose}>
-         <div className="modal" onClick={(e) => e.stopPropagation()}>
-           <div className="modal-head">
-             <h2>{content.title}</h2>
-             <button className="modal-close" onClick={onClose}>✕</button>
-           </div>
-           {content.body.map((p, i) => (
-             <p key={i} style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 10 }}>{p}</p>
-           ))}
-         </div>
-       </div>
-     );
-   }
-   
-   function ContactDeveloperModal({ onClose }) {
+   function LegalPage({ contentKey, navigate }) {
+    const content = LEGAL_CONTENT[contentKey];
+    if (!content) return null;
+  
+    const otherLinks = [
+      { key: 'privacy', label: 'Privacy Policy' },
+      { key: 'terms', label: 'Terms of Service' },
+      { key: 'cookies', label: 'Cookie Policy' },
+      { key: 'contact-developer', label: 'Contact Developer' },
+    ].filter((l) => l.key !== contentKey);
+  
     return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
-          <div className="modal-head">
-            <h2 style={{ color: '#1B1E19' }}>Contact Developer</h2>
-            <button className="modal-close" onClick={onClose}>✕</button>
+      <div className="container" style={{ maxWidth: 800, marginTop: 30, marginBottom: 40 }}>
+        <div className="card">
+          <h1 style={{ marginBottom: 16 }}>{content.title}</h1>
+          {content.body.map((p, i) => (
+            <p key={i} style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 12 }}>{p}</p>
+          ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 24 }}>
+            {otherLinks.map((l) => (
+              <button key={l.key} className="btn btn-outline btn-sm" onClick={() => navigate(l.key)}>
+                {l.label}
+              </button>
+            ))}
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('home')}>← Back to Home</button>
           </div>
+        </div>
+      </div>
+    );
+  }
+  
+  function ContactDeveloperPage({ navigate }) {
+    return (
+      <div className="container" style={{ maxWidth: 560, marginTop: 30, marginBottom: 40 }}>
+        <div className="card" style={{ textAlign: 'center' }}>
+          <h1 style={{ color: '#1B1E19', marginBottom: 18 }}>Contact Developer</h1>
           <img
             src="https://i.postimg.cc/cH2C6rgk/611276591-17933684004156896-6444722502286434287-n-(1).jpg"
             alt="Shree Shyam IT Solutions"
@@ -1203,69 +1449,82 @@
             >
               🌐 Visit website
             </a>
+            <button className="btn btn-outline btn-block" onClick={() => navigate('home')}>← Back to Home</button>
           </div>
         </div>
       </div>
     );
   }
-   
-   function Footer({ navigate }) {
-     const t = useT();
-     const [modal, setModal] = useState(null); // 'privacy' | 'terms' | 'cookies' | 'contact' | null
-     const handleNav = (path, params) => (e) => {
-       e.preventDefault();
-       navigate(path, params || {});
-     };
-   
-     return (
-<div className="footer">
-  <div className="container">
-    <div className="footer-grid">
-      <div className="footer-col">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-          <img 
-            src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png" 
-            alt="Rojgar AREA Logo" 
-            style={{ height: '40px', width: 'auto' }}
-          />
-          <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
-        </div>
-        <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
-      </div>
-      <div className="footer-col">
-        <h4>Quick Links</h4>
-        <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
-        <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
-        <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
-        <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
-      </div>
-      <div className="footer-col">
-        <h4>Popular Searches</h4>
-        <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
-      </div>
-      <div className="footer-col">
-        <h4>Legal</h4>
-        <button className="footer-link" onClick={() => setModal('privacy')}>Privacy Policy</button>
-        <button className="footer-link" onClick={() => setModal('terms')}>Terms of Service</button>
-        <button className="footer-link" onClick={() => setModal('cookies')}>Cookie Policy</button>
-        <button className="footer-link" onClick={() => setModal('contact')}>Contact Developer</button>
-      </div>
-    </div>
-    <div className="footer-bottom">
-      <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
-    </div>
-  </div>
 
-  {(modal === 'privacy' || modal === 'terms' || modal === 'cookies') && (
-    <LegalModal contentKey={modal} onClose={() => setModal(null)} />
-  )}
-  {modal === 'contact' && <ContactDeveloperModal onClose={() => setModal(null)} />}
-</div>
-     );
-   }
+  function Footer({ navigate }) {
+    const t = useT();
+    const handleNav = (page, params) => (e) => {
+      e.preventDefault();
+      navigate(page, params || {});
+    };
+  
+    return (
+      <div className="footer">
+        <div className="container">
+          <div className="footer-grid">
+            <div className="footer-col">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <img
+                  src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
+                  alt="Rojgar AREA Logo"
+                  style={{ height: '40px', width: 'auto' }}
+                />
+                <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
+              </div>
+              <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
+              <a
+                href={CONFIG.APP_DOWNLOAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary btn-sm footer-download-btn"
+                style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}
+              >
+                {t('downloadApp')}
+              </a>
+            </div>
+            <div className="footer-col">
+              <h4>Quick Links</h4>
+              <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
+              <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
+              <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
+              <a
+                href={CONFIG.APP_DOWNLOAD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+                style={{ textDecoration: 'none', display: 'block' }}
+              >
+                {t('downloadApp')}
+              </a>
+              <button className="footer-link" onClick={handleNav('contact-developer')}>About Us</button>
+            </div>
+            <div className="footer-col">
+              <h4>Popular Searches</h4>
+              <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
+              <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
+              <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
+              <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
+            </div>
+            <div className="footer-col">
+              <h4>Legal</h4>
+              <button className="footer-link" onClick={handleNav('privacy')}>Privacy Policy</button>
+              <button className="footer-link" onClick={handleNav('terms')}>Terms of Service</button>
+              <button className="footer-link" onClick={handleNav('cookies')}>Cookie Policy</button>
+              <button className="footer-link" onClick={handleNav('contact-developer')}>Contact Developer</button>
+            </div>
+          </div>
+          <div className="footer-bottom">
+            <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
    
    // ==============================================================
    // NAVBAR
@@ -1318,9 +1577,6 @@
             {mobileMenuOpen ? '✕' : '☰'}
           </button>
   
-          {/* Single wrapper — on desktop it's invisible to layout (display:contents),
-              on mobile it becomes the one dropdown panel, so nav-links always
-              render above nav-user in the DOM and on screen. */}
           <div className={`nav-menu-wrapper ${mobileMenuOpen ? 'open' : ''}`}>
             <div className="nav-links">
               <button className={`nav-link ${route.page === 'home' ? 'active' : ''}`} onClick={() => { navigate('home'); closeMenu(); }}>{t('home')}</button>
@@ -1384,8 +1640,6 @@
        }
      };
    
-     // Home shows only the first HOME_MAX_RESULTS (6) recent/nearby
-     // listings — "View all" on Browse Jobs shows the rest.
      const nearby = useMemo(() => {
        if (!allAds) return null;
        const filters = geo.status === 'granted'
@@ -1404,8 +1658,6 @@
        [allAds]
      );
    
-     // Home shows only the first HOME_MAX_CATEGORIES (6) categories,
-     // laid out in a single row (categories-grid-line).
      const jobCategories = useMemo(() => {
        const counts = {};
        (allAds || []).forEach((ad) => {
@@ -1421,7 +1673,7 @@
            icon: CATEGORY_ICONS[name] || '📋', 
            name, 
            count,
-           image: CATEGORY_IMAGES[name] || null
+           image: CATEGORY_IMAGES[name] || DEFAULT_CATEGORY_IMAGE
          }));
      }, [allAds]);
    
@@ -1431,7 +1683,6 @@
        { number: '03', title: 'Get Hired', description: 'Connect directly with businesses and start working.', icon: '🎉' },
      ];
    
-     // Hero images for the background slideshow
      const heroImages = [
        'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=1200&h=600&fit=crop',
        'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=600&fit=crop',
@@ -1495,6 +1746,15 @@
                <button className="btn btn-outline-light" onClick={runNearbySearch}>
                  {t('findJobsNearMe')}
                </button>
+               <a
+                 href={CONFIG.APP_DOWNLOAD_URL}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="btn btn-primary hero-download-btn"
+                 style={{ textDecoration: 'none' }}
+               >
+                 {t('downloadApp')}
+               </a>
                <span className="hero-stats">
                  <strong className="counter-animate">{allAds ? activeCount : '—'}</strong> active requirements · <strong>{allAds?.length || 0}</strong> total listings
                </span>
@@ -1660,22 +1920,24 @@
    
    function AdCard({ ad, onClick }) {
      const hasImages = ad.images && ad.images.length > 0;
+     const displayImages = getAdDisplayImages(ad);
      const isNew = new Date(ad.postedAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
      return (
-       <div className="ad-card" onClick={onClick}>
-         <div className="ad-card-img" style={hasImages ? { backgroundImage: `url(${ad.images[0]})` } : {}}>
-           {!hasImages && <div className="no-img">No photo</div>}
-           {ad.images && ad.images.length > 1 && <div className="ad-card-count">{ad.images.length} photos</div>}
+       <div className={`ad-card ${ad.sponsored ? 'ad-card-sponsored' : ''}`} onClick={onClick}>
+         <div className="ad-card-img" style={{ backgroundImage: `url(${displayImages[0]})` }}>
+           {!hasImages && <div className="ad-card-placeholder-tag">📷 Representative photo</div>}
+           {hasImages && ad.images.length > 1 && <div className="ad-card-count">{ad.images.length} photos</div>}
            {ad.status !== 'active' && <div className="ad-card-badge"><StatusBadge status={ad.status} /></div>}
-           {isNew && !ad.urgent && <div className="ad-card-new">New</div>}
-           {ad.urgent && <div className="ad-card-new" style={{ background: 'var(--danger, #d9363e)' }}>🔥 Urgent</div>}
+           {ad.sponsored && <div className="ad-card-new" style={{ background: '#c9960c' }}>⭐ Featured</div>}
+           {!ad.sponsored && isNew && !ad.urgent && <div className="ad-card-new">New</div>}
+           {!ad.sponsored && ad.urgent && <div className="ad-card-new" style={{ background: 'var(--danger, #d9363e)' }}>🔥 Urgent</div>}
          </div>
          <div className="ad-card-body">
            <div className="ad-card-title">
              {ad.jobTitle}
              {ad.businessVerified && <VerifiedBadge small />}
            </div>
-           <div className="ad-card-biz">{ad.businessName} · {ad.businessType}</div>
+           <div className="ad-card-biz">{ad.businessName} · {businessTypeOf(ad)}</div>
            <div className="ad-card-meta">
              <span>📍 {ad.locationAddress || 'Location on request'}</span>
              <span>👷 {ad.numWorkers} needed</span>
@@ -1694,7 +1956,7 @@
    // FILTER PANEL — content rendered inside the "Filters" drawer
    // on the Browse Jobs page.
    // ==============================================================
-   function FilterPanel({ filters, setFilters, categoryOptions, geoStatus, onRequestLocation, resultCount }) {
+   function FilterPanel({ filters, setFilters, categoryOptions, businessTypeOptions, geoStatus, onRequestLocation, resultCount }) {
      const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
      const reset = () => setFilters({ ...EMPTY_FILTERS });
    
@@ -1738,7 +2000,7 @@
            <label>Business type</label>
            <select value={filters.businessType} onChange={(e) => set('businessType', e.target.value)}>
              <option value="">All business types</option>
-             {BUSINESS_TYPES.map((c) => <option key={c} value={c}>{c}</option>)}
+             {businessTypeOptions.map((c) => <option key={c} value={c}>{c}</option>)}
            </select>
          </div>
    
@@ -1799,6 +2061,7 @@
      }, [allAds, filters, geo.coords]);
    
      const categoryOptions = useMemo(() => buildCategoryOptions(allAds || []), [allAds]);
+     const businessTypeOptions = useMemo(() => buildBusinessTypeOptions(allAds || []), [allAds]);
    
      return (
 <div className="container">
@@ -1818,6 +2081,7 @@
         filters={filters}
         setFilters={setFilters}
         categoryOptions={categoryOptions}
+        businessTypeOptions={businessTypeOptions}
         geoStatus={geo.status}
         onRequestLocation={geo.request}
         resultCount={results ? results.length : undefined}
@@ -1849,6 +2113,7 @@
       filters={filters}
       setFilters={setFilters}
       categoryOptions={categoryOptions}
+      businessTypeOptions={businessTypeOptions}
       geoStatus={geo.status}
       onRequestLocation={geo.request}
       resultCount={results ? results.length : undefined}
@@ -1876,11 +2141,14 @@
      const [reviewsKey, setReviewsKey] = useState(0);
      const [, setApplied] = useState(false);
      const [directionsLoading, setDirectionsLoading] = useState(false);
+     const [sponsorOpen, setSponsorOpen] = useState(false);
    
      const load = useCallback(() => {
        setAd(null); setError(null);
-       apiCall('getAdById', { adId }).then((data) => setAd(data.ad)).catch((err) => setError(err.message));
-     }, [adId]);
+       apiCall('getAdById', { adId, viewerId: user ? user.userId : undefined })
+         .then((data) => setAd(data.ad))
+         .catch((err) => setError(err.message));
+     }, [adId, user]);
    
      useEffect(() => { load(); }, [load]);
    
@@ -1920,7 +2188,8 @@
      };
    
      const isOwner = user && ad.postedBy === user.userId;
-     const images = ad.images || [];
+     const hasRealImages = ad.images && ad.images.length > 0;
+     const images = getAdDisplayImages(ad);
      const whatsappLink = buildWhatsAppLink(ad.contactPhone, `Hi, I'm interested in the "${ad.jobTitle}" position at ${ad.businessName} that I saw on Rojgar AREA.`);
    
      return (
@@ -1947,6 +2216,13 @@
              <span>This is your listing.</span>
              <button className="btn btn-outline btn-sm" onClick={() => navigate('edit', { adId: ad.adId })}>✎ Edit</button>
              <button className="btn btn-outline btn-sm" onClick={() => navigate('dashboard')}>Go to dashboard</button>
+             {ad.status === 'active' && (
+               ad.sponsored
+                 ? <span className="badge" style={{ background: '#fff4d6', color: '#8a6400', border: '1px solid #f0d27a' }}>
+                     ⭐ Featured until {ad.sponsoredUntil ? new Date(ad.sponsoredUntil).toLocaleDateString() : ''}
+                   </span>
+                 : <button className="btn btn-outline btn-sm" onClick={() => setSponsorOpen(true)}>⭐ Sponsor this ad</button>
+             )}
            </div>
          )}
    
@@ -1965,6 +2241,11 @@
                    <img key={i} src={src} alt={`Thumbnail ${i + 1}`} className={i === activeImg ? 'active' : ''} onClick={() => setActiveImg(i)} />
                  ))}
                </div>
+             )}
+             {!hasRealImages && (
+               <p style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 8 }}>
+                 📷 Representative photo — this business hasn't uploaded workplace photos yet.
+               </p>
              )}
    
              <div className="desc-block">
@@ -2010,8 +2291,9 @@
            <div className="details-panel">
              <StatusBadge status={ad.status} />
              {ad.businessVerified && <span style={{ marginLeft: 8 }}><VerifiedBadge /></span>}
+             {ad.sponsored && <span style={{ marginLeft: 8 }}><FeaturedBadge /></span>}
              <h1 style={{ marginTop: 10 }}>{ad.jobTitle}</h1>
-             <div className="biz-name">{ad.businessName} · {ad.businessType}</div>
+             <div className="biz-name">{ad.businessName} · {businessTypeOf(ad)}</div>
              {distanceKm != null && <DistanceChip km={distanceKm} />}
    
              <div className="spec-list">
@@ -2050,7 +2332,6 @@
                </div>
              )}
    
-             {/* Save & Report are available to every role (worker, business, admin) — not gated by userType. */}
              {ad.status === 'active' && !isOwner && (
                <div className="action-row">
                  <button className={`btn ${saved ? 'btn-success' : 'btn-outline'} btn-block`} onClick={toggleSave}>
@@ -2081,6 +2362,14 @@
              adId={ad.adId}
              onClose={() => setReviewOpen(false)}
              onSubmitted={() => { setReviewOpen(false); setReviewsKey((k) => k + 1); toast('Thanks for your review!', 'success'); }}
+           />
+         )}
+   
+         {sponsorOpen && (
+           <SponsorAdModal
+             ad={ad}
+             onClose={() => setSponsorOpen(false)}
+             onSponsored={load}
            />
          )}
    
@@ -2146,7 +2435,7 @@
    // AD FORM PAGE
    // ==============================================================
    const BLANK_FORM = {
-     businessName: '', businessType: BUSINESS_TYPES[0], jobTitle: '', workerCategory: WORKER_CATEGORIES[0],
+     businessName: '', businessType: BUSINESS_TYPES[0], customBusinessType: '', jobTitle: '', workerCategory: WORKER_CATEGORIES[0],
      customCategory: '', numWorkers: 1, salary: '', education: '', experience: '', skills: '', workingHours: '',
      description: '', contactPhone: '', locationLat: null, locationLng: null, locationAddress: '', urgent: false
    };
@@ -2184,14 +2473,10 @@
     const [loading, setLoading] = useState(isEdit);
     const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
   
-    // Move the permission check AFTER all hooks
-    // All hooks must be called unconditionally at the top level
-  
     useEffect(() => {
-      // Only fetch data if editing and user has permission
       if (!isEdit || !canPostAds(user)) return;
       
-      apiCall('getAdById', { adId }).then((data) => {
+      apiCall('getAdById', { adId, viewerId: user.userId }).then((data) => {
         const ad = data.ad;
         if (ad.postedBy !== user.userId) { 
           setNotFoundOrForbidden(true); 
@@ -2200,6 +2485,7 @@
         }
         setForm({
           businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
+          customBusinessType: ad.customBusinessType || '',
           jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
           customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
           education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
@@ -2213,9 +2499,8 @@
         setNotFoundOrForbidden(true); 
         setLoading(false); 
       });
-    }, [isEdit, adId, user.userId, user]); // Add user to dependencies
+    }, [isEdit, adId, user.userId, user]);
   
-    // Defense in depth: check permission after all hooks
     if (!canPostAds(user)) {
       return <PostNotAllowedPage navigate={navigate} />;
     }
@@ -2227,6 +2512,10 @@
       if (!form.businessName || !form.jobTitle) { 
         setError('Business name and job title are required.'); 
         return; 
+      }
+      if (form.businessType === 'Other' && !form.customBusinessType.trim()) {
+        setError('Please describe your business type.');
+        return;
       }
       if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
         setError('Please describe the worker category.'); 
@@ -2254,6 +2543,8 @@
     if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
     if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
   
+    const previewFallbackImage = images.length === 0 ? getDefaultAdImage(form) : null;
+  
     return (
       <div className="container form-page">
         <h1>{isEdit ? 'Edit your requirement' : t('postAJob')}</h1>
@@ -2267,9 +2558,25 @@
             <div className="field"><label>Business / workplace name *</label>
               <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." /></div>
             <div className="field"><label>Business type</label>
-              <select value={form.businessType} onChange={(e) => set('businessType', e.target.value)}>
+              <select
+                value={form.businessType}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setForm((f) => ({ ...f, businessType: next, customBusinessType: next === 'Other' ? f.customBusinessType : '' }));
+                }}
+              >
                 {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select></div>
+            {form.businessType === 'Other' && (
+              <div className="field full custom-category-field">
+                <label>What kind of business is this? *</label>
+                <input
+                  value={form.customBusinessType}
+                  onChange={(e) => set('customBusinessType', e.target.value)}
+                  placeholder="Describe your business type, e.g. NGO, Farm, Studio, Clinic"
+                />
+              </div>
+            )}
             <div className="field full"><label>Contact phone (used for WhatsApp "Apply Now")</label>
               <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="10-digit mobile number" /></div>
           </div>
@@ -2315,6 +2622,20 @@
   
           <div className="form-section-title">Workplace photos</div>
           <ImageUploader images={images} onChange={setImages} />
+          <div className="photo-fallback-hint">
+            {previewFallbackImage ? (
+              <>
+                <img src={previewFallbackImage} alt="Representative preview" className="photo-fallback-hint-img" />
+                <p>
+                  Didn't add any photos yet? No problem — until you upload real workplace photos,
+                  this representative photo (matched to your business type) will be shown instead,
+                  so your listing never looks empty.
+                </p>
+              </>
+            ) : (
+              <p>✓ Your uploaded photo(s) above will be shown on this listing.</p>
+            )}
+          </div>
   
           <div className="form-section-title">Workplace location</div>
           <LocationPicker
@@ -2499,9 +2820,16 @@
    // ==============================================================
    // WORKER PROFILES — browse, view, and edit
    // ==============================================================
-   function WorkerCard({ worker, onClick }) {
+   function WorkerCard({ worker, onClick, navigate }) {
      const t = useT();
+     const { user } = useAuth();
      const whatsappLink = buildWhatsAppLink(worker.phone, `Hi ${worker.name}, I saw your profile on Rojgar AREA and I'd like to talk about a job opportunity.`);
+     const goToLoginThenProfile = (e) => {
+       e.stopPropagation();
+       if (navigate) {
+         navigate('login', { redirectTo: { page: 'worker-details', params: { userId: worker.userId }, message: "Log in to view this worker's full profile and contact them directly." } });
+       }
+     };
      return (
        <div className="ad-card" onClick={onClick}>
          <div className="ad-card-body">
@@ -2519,7 +2847,7 @@
              <span>🧰 {worker.experienceYears ? `${worker.experienceYears} experience` : 'Experience not specified'}</span>
              {worker.availableNow && <span style={{ color: 'var(--success, #1a9d5c)' }}>🟢 {t('availableNow')}</span>}
            </div>
-           {worker.phone && (
+           {user && worker.phone && (
              <div className="ad-card-meta" style={{ marginTop: -2 }}>
                <span>📞 {worker.phone}</span>
              </div>
@@ -2532,17 +2860,30 @@
            {worker.distanceKm != null && <div className="ad-card-distance"><DistanceChip km={worker.distanceKm} /></div>}
            {worker.ratingCount > 0 && <StarRating value={worker.avgRating} count={worker.ratingCount} />}
            {worker.bio && <p style={{ fontSize: 13, color: 'var(--text-mute)', marginTop: 6 }}>{worker.bio}</p>}
-           {whatsappLink && (
-             <a
-               href={whatsappLink}
-               target="_blank"
-               rel="noopener noreferrer"
-               onClick={(e) => e.stopPropagation()}
-               className="btn btn-sm"
-               style={{ background: '#25D366', color: '#fff', textDecoration: 'none', display: 'inline-block', marginTop: 8, padding: '6px 12px', borderRadius: 6 }}
-             >
-               {t('applyWhatsApp')}
-             </a>
+           {worker.phone && (
+             user ? (
+               whatsappLink && (
+                 <a
+                   href={whatsappLink}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   onClick={(e) => e.stopPropagation()}
+                   className="btn btn-sm"
+                   style={{ background: '#25D366', color: '#fff', textDecoration: 'none', display: 'inline-block', marginTop: 8, padding: '6px 12px', borderRadius: 6 }}
+                 >
+                   {t('applyWhatsApp')}
+                 </a>
+               )
+             ) : (
+               <button
+                 type="button"
+                 className="btn btn-sm"
+                 onClick={goToLoginThenProfile}
+                 style={{ background: '#25D366', color: '#fff', border: 'none', display: 'inline-block', marginTop: 8, padding: '6px 12px', borderRadius: 6, cursor: 'pointer' }}
+               >
+                 🔒 Log in to contact
+               </button>
+             )
            )}
          </div>
        </div>
@@ -2630,8 +2971,6 @@
       return () => clearTimeout(timer);
     }, [load]);
   
-    // Radius/sort/distance are computed client-side (mirrors filterAndSortAds)
-    // so this actually reflects the worker's saved profile location.
     const workers = useMemo(() => {
       if (!rawWorkers) return null;
       return filterAndSortWorkers(rawWorkers, filters, geo.coords);
@@ -2654,7 +2993,6 @@
         <LocationBanner compact />
   
         <div className="browse-layout">
-          {/* Desktop Filters - always visible on desktop */}
           <div className="filter-sidebar-desktop">
             <WorkerFilterPanel
               filters={filters}
@@ -2667,7 +3005,6 @@
             />
           </div>
   
-          {/* Results */}
           <div className="browse-results-full">
             {rawWorkers === null && !error && <Spinner label="Loading workers..." />}
             {error && <ErrorState message={error} onRetry={load} />}
@@ -2678,7 +3015,7 @@
               <div className="grid">
                 {workers.map((w, i) => (
                   <AnimatedCard key={w.userId} delay={i % 10 * 50}>
-                    <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} />
+                    <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} navigate={navigate} />
                   </AnimatedCard>
                 ))}
               </div>
@@ -2686,7 +3023,6 @@
           </div>
         </div>
   
-        {/* Mobile Filter Drawer */}
         <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
           <WorkerFilterPanel
             filters={filters}
@@ -2716,8 +3052,10 @@
    
      const load = useCallback(() => {
        setWorker(null); setError(null);
-       apiCall('getWorkerProfile', { userId }).then((d) => setWorker(d.user)).catch((e) => setError(e.message));
-     }, [userId]);
+       apiCall('getWorkerProfile', { userId, viewerId: user ? user.userId : undefined })
+         .then((d) => setWorker(d.user))
+         .catch((e) => setError(e.message));
+     }, [userId, user]);
      useEffect(() => { load(); }, [load]);
    
      if (error) return <div className="container"><ErrorState message={error} onRetry={load} /></div>;
@@ -2874,7 +3212,7 @@
      const [error, setError] = useState(null);
    
      useEffect(() => {
-       apiCall('getWorkerProfile', { userId: user.userId }).then((d) => setForm(d.user)).catch((e) => setError(e.message));
+       apiCall('getWorkerProfile', { userId: user.userId, viewerId: user.userId }).then((d) => setForm(d.user)).catch((e) => setError(e.message));
      }, [user.userId]);
    
      if (error && !form) return <ErrorState message={error} />;
@@ -2886,15 +3224,10 @@
      const needsWorkerPhone = form.userType === 'worker' || form.userType === 'both';
    
      const save = async () => {
-       // FIX: previously you could save with only a typed address and no
-       // map pin — the address text saved fine, but "Workers near you"
-       // needs real coordinates, so those profiles were invisible there.
        if (needsWorkerLocation && !hasLocation) {
          setError('Please pin your location on the map below before saving — an address alone isn\'t enough for "Workers near you" to find you.');
          return;
        }
-       // Phone is mandatory for any account that can show up as a worker,
-       // since it's the primary way businesses reach out from "Find Workers".
        if (needsWorkerPhone && !String(form.phone || '').trim()) {
          setError('A phone number is required so businesses can contact you from "Find Workers".');
          return;
@@ -3047,7 +3380,6 @@
         <h1>My dashboard</h1>
         <p style={{ color: 'var(--text-mute)', marginBottom: 20 }}>Welcome back, {user.name}.</p>
   
-        {/* Desktop Tabs */}
         <div className="dashboard-tabs-desktop">
           {tabDefs.map((tb) => (
             <button
@@ -3060,7 +3392,6 @@
           ))}
         </div>
   
-        {/* Mobile Menu Button */}
         <div className="section-head" style={{ marginTop: 0, marginBottom: 18 }}>
           <h2 style={{ fontSize: 20 }}>{currentLabel}</h2>
           <button className="btn btn-outline dashboard-menu-toggle" onClick={() => setMenuOpen(true)}>
@@ -3068,13 +3399,11 @@
           </button>
         </div>
   
-        {/* Tab Content */}
         {tab === 'myads' && canPostAds(user) && <MyAdsTab navigate={navigate} />}
         {tab === 'saved' && <SavedAdsTab navigate={navigate} />}
         {tab === 'reports' && <MyReportsTab />}
         {tab === 'profile' && <MyProfileTab />}
   
-        {/* Mobile Menu Drawer */}
         <FilterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} title="Dashboard menu" side="right">
           <div className="drawer-tab-list">
             {tabDefs.map((tb) => (
@@ -3132,6 +3461,7 @@
      const [ads, setAds] = useState(null);
      const [error, setError] = useState(null);
      const [busyId, setBusyId] = useState(null);
+     const [sponsoringAd, setSponsoringAd] = useState(null);
    
      const load = useCallback(() => {
        setAds(null); setError(null);
@@ -3167,21 +3497,44 @@
      );
    
      return (
-       <div className="grid">
-         {ads.map((ad) => (
-           <div key={ad.adId} className="my-ad-card">
-             <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
-             <div className="my-ad-actions">
-               <button className="btn btn-outline btn-sm" onClick={() => navigate('edit', { adId: ad.adId })} disabled={ad.status === 'taken_down'}>✎ Edit</button>
-               {ad.status !== 'taken_down' && (
-                 <button className="btn btn-outline btn-sm" disabled={busyId === ad.adId} onClick={() => toggleStatus(ad)}>
-                   {ad.status === 'active' ? '⏸ Pause' : '▶ Activate'}
-                 </button>
-               )}
-               <button className="btn btn-danger btn-sm" disabled={busyId === ad.adId} onClick={() => remove(ad)}>🗑 Delete</button>
+       <div>
+         <div className="grid">
+           {ads.map((ad) => (
+             <div key={ad.adId} className="my-ad-card">
+               <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+               <div className="my-ad-actions">
+                 <button className="btn btn-outline btn-sm" onClick={() => navigate('edit', { adId: ad.adId })} disabled={ad.status === 'taken_down'}>✎ Edit</button>
+                 {ad.status !== 'taken_down' && (
+                   <button className="btn btn-outline btn-sm" disabled={busyId === ad.adId} onClick={() => toggleStatus(ad)}>
+                     {ad.status === 'active' ? '⏸ Pause' : '▶ Activate'}
+                   </button>
+                 )}
+                 {/* Sponsor/feature action, or show current feature status
+                     inline with the other ad actions. Clicking "Sponsor"
+                     sets sponsoringAd, which the SponsorAdModal rendered
+                     at the bottom of this component (below) picks up —
+                     previously this state was set but the modal was
+                     never rendered, so the button did nothing. */}
+                 {ad.status === 'active' && (
+                   ad.sponsored
+                     ? <span className="badge" style={{ background: '#fff4d6', color: '#8a6400', border: '1px solid #f0d27a' }}>
+                         ⭐ Featured until {ad.sponsoredUntil ? new Date(ad.sponsoredUntil).toLocaleDateString() : ''}
+                       </span>
+                     : <button className="btn btn-outline btn-sm" onClick={() => setSponsoringAd(ad)}>⭐ Sponsor</button>
+                 )}
+                 <button className="btn btn-danger btn-sm" disabled={busyId === ad.adId} onClick={() => remove(ad)}>🗑 Delete</button>
+               </div>
              </div>
-           </div>
-         ))}
+           ))}
+         </div>
+   
+         {sponsoringAd && (
+           <SponsorAdModal
+             ad={sponsoringAd}
+             onClose={() => setSponsoringAd(null)}
+             onSponsored={load}
+           />
+         )}
        </div>
      );
    }
@@ -3266,6 +3619,8 @@
            <div className="stat-card danger"><div className="num">{stats.takenDownAds}</div><div className="lbl">Taken down</div></div>
            <div className="stat-card"><div className="num">{stats.totalAds}</div><div className="lbl">Total ads posted</div></div>
            <div className="stat-card success"><div className="num">{stats.urgentAds}</div><div className="lbl">🔥 Urgent ads</div></div>
+           <div className="stat-card success"><div className="num">{stats.activeSponsorships != null ? stats.activeSponsorships : '—'}</div><div className="lbl">⭐ Active featured ads</div></div>
+           <div className="stat-card"><div className="num">{stats.totalSponsorshipRevenue != null ? `₹${stats.totalSponsorshipRevenue}` : '—'}</div><div className="lbl">Featured ad revenue (all time)</div></div>
            <div className="stat-card success"><div className="num">{stats.totalWorkersRequested}</div><div className="lbl">Workers currently sought</div></div>
            <div className="stat-card"><div className="num">{stats.totalUsers}</div><div className="lbl">Registered users</div></div>
            <div className="stat-card"><div className="num">{stats.verifiedUsers}</div><div className="lbl">Verified users</div></div>
@@ -3318,7 +3673,7 @@
      return (
        <div className="table-wrap">
          <table>
-           <thead><tr><th>Job title</th><th>Business</th><th>Category</th><th>Status</th><th>Posted</th><th>Actions</th></tr></thead>
+           <thead><tr><th>Job title</th><th>Business</th><th>Category</th><th>Status</th><th>Featured</th><th>Posted</th><th>Actions</th></tr></thead>
            <tbody>
              {ads.map((ad) => (
                <tr key={ad.adId}>
@@ -3326,6 +3681,7 @@
                  <td>{ad.businessName}</td>
                  <td>{categoryOf(ad)}</td>
                  <td><StatusBadge status={ad.status} /></td>
+                 <td>{ad.sponsored ? `⭐ until ${ad.sponsoredUntil ? new Date(ad.sponsoredUntil).toLocaleDateString() : '—'}` : '—'}</td>
                  <td className="mono">{new Date(ad.postedAt).toLocaleDateString()}</td>
                  <td className="row-actions">
                    {ad.status !== 'taken_down'
@@ -3459,8 +3815,6 @@
        } catch (err) { toast(err.message, 'error'); } finally { setBusyId(null); }
      };
    
-     // NEW: suspend/restore a worker or business profile — hides them
-     // from public "Find Workers" search and flags their profile page.
      const toggleSuspended = async (u) => {
        setBusyId(u.userId);
        try {
@@ -3542,6 +3896,15 @@
    
      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
    
+     const redirectIsObject = redirectTo && typeof redirectTo === 'object' && redirectTo.page;
+     const goToRedirect = () => {
+       if (redirectIsObject) {
+         navigate(redirectTo.page, redirectTo.params || {});
+       } else {
+         navigate(redirectTo || 'home');
+       }
+     };
+   
      const submit = async (e) => {
        e.preventDefault();
        setBusy(true); setError(null);
@@ -3551,15 +3914,19 @@
            : await apiCall('register', form);
          login(data.user);
          toast(mode === 'login' ? `Welcome back, ${data.user.name}.` : 'Account created — welcome!', 'success');
-         navigate(redirectTo || 'home');
+         goToRedirect();
        } catch (err) { setError(err.message); } finally { setBusy(false); }
      };
+   
+     const subtitle = redirectIsObject && redirectTo.message
+       ? redirectTo.message
+       : (mode === 'login' ? 'Access your dashboard and saved jobs.' : 'Post job requirements or apply to local jobs.');
    
      return (
        <div className="auth-wrap">
          <div className="auth-card">
            <h2>{mode === 'login' ? t('login') : 'Create your account'}</h2>
-           <div className="sub">{mode === 'login' ? 'Access your dashboard and saved jobs.' : 'Post job requirements or apply to local jobs.'}</div>
+           <div className="sub">{subtitle}</div>
            <form onSubmit={submit}>
              {mode === 'register' && (
                <div className="field"><label>Full name</label><input required value={form.name} onChange={(e) => set('name', e.target.value)} /></div>
@@ -3602,3 +3969,5 @@
    // EXPORT
    // ==============================================================
    export default App;
+
+   

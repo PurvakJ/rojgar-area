@@ -689,6 +689,10 @@
        case 'admin': return '/admin';
        case 'login': return '/login';
        case 'register': return '/register';
+       case 'privacy': return '/privacy-policy';
+       case 'terms': return '/terms-of-service';
+       case 'cookies': return '/cookie-policy';
+       case 'contact-developer': return '/contact-developer';
        default: return '/';
      }
    }
@@ -713,6 +717,10 @@
        case 'admin': return { page: 'admin', params: {} };
        case 'login': return { page: 'login', params: {} };
        case 'register': return { page: 'register', params: {} };
+       case 'privacy-policy': return { page: 'privacy', params: {} };
+       case 'terms-of-service': return { page: 'terms', params: {} };
+       case 'cookie-policy': return { page: 'cookies', params: {} };
+       case 'contact-developer': return { page: 'contact-developer', params: {} };
        default: return { page: 'home', params: {} };
      }
    }
@@ -1333,6 +1341,10 @@
          return <WorkerProfileViewPage userId={route.params.userId} navigate={navigate} />;
        case 'login': return <LoginPage navigate={navigate} initialMode="login" redirectTo={route.params.redirectTo} />;
        case 'register': return <LoginPage navigate={navigate} initialMode="register" redirectTo={route.params.redirectTo} />;
+       case 'privacy': return <LegalPage contentKey="privacy" navigate={navigate} />;
+       case 'terms': return <LegalPage contentKey="terms" navigate={navigate} />;
+       case 'cookies': return <LegalPage contentKey="cookies" navigate={navigate} />;
+       case 'contact-developer': return <ContactDeveloperPage navigate={navigate} />;
        default: return <HomePage navigate={navigate} />;
      }
    }
@@ -1369,139 +1381,144 @@
      }
    };
    
-   function LegalModal({ contentKey, onClose }) {
-     const content = LEGAL_CONTENT[contentKey];
-     if (!content) return null;
-     return (
-       <div className="modal-overlay" onClick={onClose}>
-         <div className="modal" onClick={(e) => e.stopPropagation()}>
-           <div className="modal-head">
-             <h2>{content.title}</h2>
-             <button className="modal-close" onClick={onClose}>✕</button>
-           </div>
-           {content.body.map((p, i) => (
-             <p key={i} style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 10 }}>{p}</p>
-           ))}
-         </div>
-       </div>
-     );
-   }
-   
-   function ContactDeveloperModal({ onClose }) {
+   function LegalPage({ contentKey, navigate }) {
+    const content = LEGAL_CONTENT[contentKey];
+    if (!content) return null;
+  
+    const otherLinks = [
+      { key: 'privacy', label: 'Privacy Policy' },
+      { key: 'terms', label: 'Terms of Service' },
+      { key: 'cookies', label: 'Cookie Policy' },
+      { key: 'contact-developer', label: 'Contact Developer' },
+    ].filter((l) => l.key !== contentKey);
+  
     return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
-          <div className="modal-head">
-            <h2 style={{ color: '#1B1E19' }}>Contact Developer</h2>
-            <button className="modal-close" onClick={onClose}>✕</button>
-          </div>
-          <img
-            src="https://i.postimg.cc/cH2C6rgk/611276591-17933684004156896-6444722502286434287-n-(1).jpg"
-            alt="Shree Shyam IT Solutions"
-            style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }}
-          />
-          <h3 style={{ marginBottom: 4, color: '#1B1E19' }}>Shree Shyam IT Solutions</h3>
-          <p style={{ color: '#726C59', fontSize: 14, marginBottom: 18 }}>
-            This platform was built and is maintained by Shree Shyam IT Solutions.
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <a
-              href="mailto:itsolutionsshreeshyam@gmail.com"
-              className="btn btn-outline btn-block"
-              style={{ textDecoration: 'none', color: '#1B1E19' }}
-            >
-              ✉️ itsolutionsshreeshyam@gmail.com
-            </a>
-            <a
-              href="https://shree-shyam-it-solutions.vercel.app/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary btn-block"
-              style={{ textDecoration: 'none' }}
-            >
-              🌐 Visit website
-            </a>
+      <div className="container" style={{ maxWidth: 800, marginTop: 30, marginBottom: 40 }}>
+        <div className="card">
+          <h1 style={{ marginBottom: 16 }}>{content.title}</h1>
+          {content.body.map((p, i) => (
+            <p key={i} style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 12 }}>{p}</p>
+          ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 24 }}>
+            {otherLinks.map((l) => (
+              <button key={l.key} className="btn btn-outline btn-sm" onClick={() => navigate(l.key)}>
+                {l.label}
+              </button>
+            ))}
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('home')}>← Back to Home</button>
           </div>
         </div>
       </div>
     );
   }
    
-   function Footer({ navigate }) {
-     const t = useT();
-     const [modal, setModal] = useState(null); // 'privacy' | 'terms' | 'cookies' | 'contact' | null
-     const handleNav = (path, params) => (e) => {
-       e.preventDefault();
-       navigate(path, params || {});
-     };
-   
-     return (
-<div className="footer">
-  <div className="container">
-    <div className="footer-grid">
-      <div className="footer-col">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-          <img 
-            src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png" 
-            alt="Rojgar AREA Logo" 
-            style={{ height: '40px', width: 'auto' }}
-          />
-          <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
+function ContactDeveloperPage({ navigate }) {
+  return (
+    <div className="container" style={{ maxWidth: 560, marginTop: 30, marginBottom: 40 }}>
+      <div className="card" style={{ textAlign: 'center' }}>
+        <h1 style={{ color: '#1B1E19', marginBottom: 18 }}>Contact Developer</h1>
+        <img
+          src="https://i.postimg.cc/cH2C6rgk/611276591-17933684004156896-6444722502286434287-n-(1).jpg"
+          alt="Shree Shyam IT Solutions"
+          style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }}
+        />
+        <h3 style={{ marginBottom: 4, color: '#1B1E19' }}>Shree Shyam IT Solutions</h3>
+        <p style={{ color: '#726C59', fontSize: 14, marginBottom: 18 }}>
+          This platform was built and is maintained by Shree Shyam IT Solutions.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <a
+            href="mailto:itsolutionsshreeshyam@gmail.com"
+            className="btn btn-outline btn-block"
+            style={{ textDecoration: 'none', color: '#1B1E19' }}
+          >
+            ✉️ itsolutionsshreeshyam@gmail.com
+          </a>
+          <a
+            href="https://shree-shyam-it-solutions.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary btn-block"
+            style={{ textDecoration: 'none' }}
+          >
+            🌐 Visit website
+          </a>
+          <button className="btn btn-outline btn-block" onClick={() => navigate('home')}>← Back to Home</button>
         </div>
-        <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
-        <a
-          href={CONFIG.APP_DOWNLOAD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-primary btn-sm footer-download-btn"
-          style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}
-        >
-          {t('downloadApp')}
-        </a>
-      </div>
-      <div className="footer-col">
-        <h4>Quick Links</h4>
-        <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
-        <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
-        <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
-        <a
-          href={CONFIG.APP_DOWNLOAD_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="footer-link"
-          style={{ textDecoration: 'none', display: 'block' }}
-        >
-          {t('downloadApp')}
-        </a>
-        <button className="footer-link" onClick={() => setModal('contact')}>About Us</button>
-      </div>
-      <div className="footer-col">
-        <h4>Popular Searches</h4>
-        <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
-        <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
-      </div>
-      <div className="footer-col">
-        <h4>Legal</h4>
-        <button className="footer-link" onClick={() => setModal('privacy')}>Privacy Policy</button>
-        <button className="footer-link" onClick={() => setModal('terms')}>Terms of Service</button>
-        <button className="footer-link" onClick={() => setModal('cookies')}>Cookie Policy</button>
-        <button className="footer-link" onClick={() => setModal('contact')}>Contact Developer</button>
       </div>
     </div>
-    <div className="footer-bottom">
-      <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
-    </div>
-  </div>
+  );
+}
+   
+function Footer({ navigate }) {
+  const t = useT();
+  const handleNav = (page, params) => (e) => {
+    e.preventDefault();
+    navigate(page, params || {});
+  };
 
-  {(modal === 'privacy' || modal === 'terms' || modal === 'cookies') && (
-    <LegalModal contentKey={modal} onClose={() => setModal(null)} />
-  )}
-  {modal === 'contact' && <ContactDeveloperModal onClose={() => setModal(null)} />}
-</div>
-     );
-   }
+  return (
+    <div className="footer">
+      <div className="container">
+        <div className="footer-grid">
+          <div className="footer-col">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <img
+                src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
+                alt="Rojgar AREA Logo"
+                style={{ height: '40px', width: 'auto' }}
+              />
+              <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
+            </div>
+            <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
+            <a
+              href={CONFIG.APP_DOWNLOAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary btn-sm footer-download-btn"
+              style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}
+            >
+              {t('downloadApp')}
+            </a>
+          </div>
+          <div className="footer-col">
+            <h4>Quick Links</h4>
+            <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
+            <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
+            <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
+            <a
+              href={CONFIG.APP_DOWNLOAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-link"
+              style={{ textDecoration: 'none', display: 'block' }}
+            >
+              {t('downloadApp')}
+            </a>
+            <button className="footer-link" onClick={handleNav('contact-developer')}>About Us</button>
+          </div>
+          <div className="footer-col">
+            <h4>Popular Searches</h4>
+            <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
+            <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
+            <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
+            <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
+          </div>
+          <div className="footer-col">
+            <h4>Legal</h4>
+            <button className="footer-link" onClick={handleNav('privacy')}>Privacy Policy</button>
+            <button className="footer-link" onClick={handleNav('terms')}>Terms of Service</button>
+            <button className="footer-link" onClick={handleNav('cookies')}>Cookie Policy</button>
+            <button className="footer-link" onClick={handleNav('contact-developer')}>Contact Developer</button>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
+        </div>
+      </div>
+    </div>
+  );
+}
    
    // ==============================================================
    // NAVBAR
