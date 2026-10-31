@@ -3111,3 +3111,163 @@
   }
 }
 
+/* ============================================================
+   v14 — paste this at the VERY END of App.css
+   1) centred content + footer always at the bottom
+   2) images can never overflow the screen
+   3) new "Post a requirement" form styles
+   ============================================================ */
+
+/* ---------- 1. LAYOUT: centred content, footer pinned to bottom ---------- */
+html, body { max-width: 100%; overflow-x: hidden; }
+#root { min-height: 100vh; display: flex; flex-direction: column; }
+
+.app-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; width: 100%; }
+
+/* <main className="app-main"> wraps <MainRouter/> and takes all spare height,
+   so a short page pushes the footer to the bottom of the screen. */
+.app-main { flex: 1 0 auto; width: 100%; display: flex; flex-direction: column; }
+.app-main > * { width: 100%; }
+.app-main > .container { margin-left: auto; margin-right: auto; }
+
+.footer { margin-top: auto; flex-shrink: 0; width: 100%; }
+
+/* centred loading / empty / error boxes */
+.state-box { max-width: 560px; margin: 40px auto; }
+.app-main > .container > .state-box { margin-top: 60px; }
+
+.auth-wrap { flex: 1; width: 100%; }
+
+/* ---------- 2. IMAGES NEVER OVERFLOW ---------- */
+img { max-width: 100%; height: auto; }
+.image-preview img, .gallery-main img, .gallery-thumbs img,
+.category-card-image img, .lightbox-img { height: 100%; }
+.gallery-thumbs img, .image-preview img { height: 100%; }
+.gallery-thumbs img { height: 68px; }
+
+.photo-fallback-hint {
+  display: flex; align-items: center; gap: 14px;
+  margin-top: 14px; padding: 12px;
+  background: var(--paper); border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+}
+.photo-fallback-hint-img {
+  width: 96px; height: 72px; flex: 0 0 96px;
+  object-fit: cover; border-radius: var(--radius-sm);
+}
+.photo-fallback-hint p { font-size: 13px; color: var(--text-mute); line-height: 1.5; margin: 0; }
+
+/* checkboxes/radios must not inherit width:100% from .field input */
+.field input[type="checkbox"], .field input[type="radio"],
+.toggle-row input[type="checkbox"] { width: 18px; height: 18px; padding: 0; flex: 0 0 18px; accent-color: var(--primary); }
+.checkbox-label { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- 3. POST-REQUIREMENT FORM ---------- */
+.ad-form-page { max-width: 760px; padding: 28px 16px 40px; margin-left: auto; margin-right: auto; }
+
+.form-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 16px; box-shadow: var(--shadow);
+  padding: 22px; margin-bottom: 18px;
+}
+.form-card-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.form-card-head h2 { font-family: var(--font); font-size: 17px; font-weight: 700; letter-spacing: 0; }
+.form-card-head p { font-size: 13px; color: var(--text-mute); margin-top: 1px; }
+.form-card-icon {
+  width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(14, 110, 92, 0.1); font-size: 20px;
+}
+
+.ad-form-intro h1 { font-size: 30px; margin: 10px 0 6px; }
+.ad-form-intro p { color: var(--text-mute); font-size: 14.5px; max-width: 560px; }
+.free-pill {
+  display: inline-block; padding: 4px 12px; border-radius: 20px;
+  background: rgba(63, 143, 41, 0.12); color: var(--success);
+  font-size: 12px; font-weight: 700;
+}
+
+.ad-form-page .field input,
+.ad-form-page .field textarea { background: var(--paper); border-radius: 10px; padding: 13px 14px; }
+.ad-form-page .field textarea { min-height: 130px; }
+.ad-form-page .field input:focus,
+.ad-form-page .field textarea:focus { background: #fff; }
+.ad-form-page .field > label { font-size: 12.5px; color: var(--text-mute); text-transform: none; letter-spacing: 0; }
+
+/* chips */
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 10px;
+  border: 1.5px solid var(--border); background: var(--paper-card);
+  color: var(--text); font-family: var(--font); font-size: 13.5px; font-weight: 500;
+  cursor: pointer; transition: var(--transition);
+}
+.chip:hover { border-color: var(--primary); }
+.chip.selected { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; }
+.chip-check { color: var(--accent); font-size: 12px; }
+
+/* stepper */
+.stepper { display: inline-flex; align-items: stretch; border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--paper); }
+.stepper button {
+  width: 46px; border: none; background: transparent; font-size: 20px; cursor: pointer; color: var(--ink);
+}
+.stepper button:hover { background: rgba(14, 110, 92, 0.1); }
+.ad-form-page .stepper input {
+  width: 64px; text-align: center; border: none; border-radius: 0;
+  border-left: 1.5px solid var(--border); border-right: 1.5px solid var(--border);
+}
+
+/* min – max row */
+.field-row { display: flex; align-items: center; gap: 10px; }
+.field-row input { flex: 1; min-width: 0; }
+.field-row-sep { color: var(--text-mute); font-size: 13px; }
+
+/* urgent toggle card */
+.toggle-row {
+  display: flex; align-items: flex-start; gap: 12px; cursor: pointer;
+  padding: 14px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--paper);
+}
+.toggle-row:has(input:checked) { border-color: var(--danger); background: rgba(193, 68, 14, 0.06); }
+.toggle-row strong { display: block; font-size: 14px; }
+.toggle-row small { display: block; color: var(--text-mute); font-size: 12.5px; margin-top: 2px; }
+
+/* sticky submit bar */
+.form-actions-bar {
+  position: sticky; bottom: 0; z-index: 20;
+  display: flex; gap: 10px; padding: 12px 0 14px;
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+.form-actions-bar .btn { padding: 15px 26px; font-size: 15px; }
+.form-actions-bar .btn-block { flex: 1; }
+
+@media (max-width: 768px) {
+  .ad-form-page { padding: 16px 12px 30px; }
+  .form-card { padding: 16px; border-radius: 14px; }
+  .ad-form-intro h1 { font-size: 25px; }
+  .ad-form-page .form-grid { grid-template-columns: 1fr; }
+  .photo-fallback-hint { flex-direction: column; align-items: flex-start; }
+  .photo-fallback-hint-img { width: 100%; height: 150px; flex-basis: auto; }
+}
+/* ---------- FIX 1: mobile dashboard needs space above the footer ---------- */
+/* The 480px rule `.container { padding: 0 14px }` comes after `.form-page`,
+   so it was wiping out the 60px bottom padding. This version is more
+   specific, so it always wins. It also covers the Admin dashboard. */
+   .container.form-page {
+    padding-top: 30px;
+    padding-bottom: 90px;
+  }
+  
+  @media (max-width: 768px) {
+    .container.form-page {
+      padding-bottom: 40px;
+    }
+  }
+  
+  /* ---------- FIX 2: desktop "Post a Requirement" = 80% of screen ---------- */
+  @media (min-width: 1025px) {
+    .container.ad-form-page {
+      width: 80%;
+      max-width: none;
+    }
+  }

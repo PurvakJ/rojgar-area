@@ -2473,211 +2473,302 @@ function Footer({ navigate }) {
      );
    }
    
-   function AdFormPage({ navigate, mode, adId }) {
-    const { user } = useAuth();
-    const toast = useToast();
-    const t = useT();
-    const isEdit = mode === 'edit';
-    const [form, setForm] = useState(BLANK_FORM);
-    const [images, setImages] = useState([]);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState(null);
-    const [loading, setLoading] = useState(isEdit);
-    const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
-  
-    // Move the permission check AFTER all hooks
-    // All hooks must be called unconditionally at the top level
-  
-    useEffect(() => {
-      // Only fetch data if editing and user has permission
-      if (!isEdit || !canPostAds(user)) return;
-      
-      // NEW (v11): getAdById now requires viewerId server-side too.
-      apiCall('getAdById', { adId, viewerId: user.userId }).then((data) => {
-        const ad = data.ad;
-        if (ad.postedBy !== user.userId) { 
-          setNotFoundOrForbidden(true); 
-          setLoading(false); 
-          return;
-        }
-        setForm({
-          businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
-          customBusinessType: ad.customBusinessType || '',
-          jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
-          customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
-          education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
-          workingHours: ad.workingHours || '', description: ad.description || '', contactPhone: ad.contactPhone || '',
-          locationLat: ad.locationLat, locationLng: ad.locationLng, locationAddress: ad.locationAddress || '',
-          urgent: !!ad.urgent
-        });
-        setImages(ad.images || []);
-        setLoading(false);
-      }).catch(() => { 
-        setNotFoundOrForbidden(true); 
-        setLoading(false); 
+// ==============================================================
+// AD FORM PAGE — v14 (section cards, chips, stepper, safe photos)
+// In App.js, delete the old `function AdFormPage(...) { ... }` and paste
+// everything in this file in its place (ChipGroup, FormSection, splitSalary,
+// AdFormPage). BLANK_FORM, SalaryBenchmarkHint, ImageUploader and
+// LocationPicker stay exactly as they are.
+// ==============================================================
+
+function ChipGroup({ options, value, onChange }) {
+  return (
+    <div className="chip-group">
+      {options.map((o) => (
+        <button
+          type="button"
+          key={o}
+          className={`chip ${value === o ? 'selected' : ''}`}
+          onClick={() => onChange(o)}
+        >
+          {value === o && <span className="chip-check">✓</span>}
+          {o}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FormSection({ num, icon, title, subtitle, children }) {
+  return (
+    <section className="form-card">
+      <header className="form-card-head">
+        <div className="form-card-icon">{icon}</div>
+        <div>
+          <h2>{num}. {title}</h2>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+      </header>
+      <div className="form-card-body">{children}</div>
+    </section>
+  );
+}
+
+// "12000-15000" -> ['12000', '15000']; anything non-numeric is kept as-is in min.
+function splitSalary(s) {
+  const raw = String(s || '').trim();
+  if (!raw) return ['', ''];
+  const m = raw.match(/^(\d+)\s*(?:-|to)?\s*(\d+)?$/i);
+  return m ? [m[1], m[2] || ''] : [raw, ''];
+}
+
+function AdFormPage({ navigate, mode, adId }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const t = useT();
+  const isEdit = mode === 'edit';
+  const [form, setForm] = useState({ ...BLANK_FORM, salaryMin: '', salaryMax: '' });
+  const [images, setImages] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(isEdit);
+  const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
+
+  useEffect(() => {
+    if (!isEdit || !canPostAds(user)) return;
+    apiCall('getAdById', { adId, viewerId: user.userId }).then((data) => {
+      const ad = data.ad;
+      if (ad.postedBy !== user.userId) { setNotFoundOrForbidden(true); setLoading(false); return; }
+      const [salaryMin, salaryMax] = splitSalary(ad.salary);
+      setForm({
+        businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
+        customBusinessType: ad.customBusinessType || '',
+        jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
+        customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
+        salaryMin, salaryMax,
+        education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
+        workingHours: ad.workingHours || '', description: ad.description || '', contactPhone: ad.contactPhone || '',
+        locationLat: ad.locationLat, locationLng: ad.locationLng, locationAddress: ad.locationAddress || '',
+        urgent: !!ad.urgent
       });
-    }, [isEdit, adId, user.userId, user]); // Add user to dependencies
-  
-    // Defense in depth: check permission after all hooks
-    if (!canPostAds(user)) {
-      return <PostNotAllowedPage navigate={navigate} />;
+      setImages(ad.images || []);
+      setLoading(false);
+    }).catch(() => { setNotFoundOrForbidden(true); setLoading(false); });
+  }, [isEdit, adId, user.userId, user]);
+
+  if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const digitsOnly = (v) => v.replace(/[^\d]/g, '');
+  const workers = Math.max(1, Number(form.numWorkers) || 1);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.businessName.trim() || !form.jobTitle.trim()) {
+      setError('Business name and job title are required.'); return;
     }
-  
-    const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  
-    const submit = async (e) => {
-      e.preventDefault();
-      if (!form.businessName || !form.jobTitle) { 
-        setError('Business name and job title are required.'); 
-        return; 
+    const phone = String(form.contactPhone || '').replace(/\D/g, '');
+    if (phone && phone.length !== 10) {
+      setError('Please enter a valid 10-digit mobile number.'); return;
+    }
+    if (form.businessType === 'Other' && !form.customBusinessType.trim()) {
+      setError('Please describe your business type.'); return;
+    }
+    if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
+      setError('Please describe the worker category.'); return;
+    }
+    if (form.salaryMin && form.salaryMax && /^\d+$/.test(form.salaryMin) && Number(form.salaryMax) < Number(form.salaryMin)) {
+      setError('Maximum salary cannot be lower than minimum salary.'); return;
+    }
+
+    const { salaryMin, salaryMax, ...rest } = form;
+    const salary = salaryMin && salaryMax ? `${salaryMin}-${salaryMax}` : (salaryMin || salaryMax || '');
+    const payload = { ...rest, salary, numWorkers: workers, contactPhone: phone, images };
+
+    setSubmitting(true); setError(null);
+    try {
+      if (isEdit) {
+        await apiCall('updateAd', { ...payload, adId, postedBy: user.userId });
+        toast('Advertisement updated.', 'success');
+        navigate('details', { adId });
+      } else {
+        await apiCall('createAd', { ...payload, postedBy: user.userId, postedByName: user.name });
+        toast('Advertisement posted successfully!', 'success');
+        navigate('home');
       }
-      if (form.businessType === 'Other' && !form.customBusinessType.trim()) {
-        setError('Please describe your business type.');
-        return;
-      }
-      if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
-        setError('Please describe the worker category.'); 
-        return;
-      }
-      setSubmitting(true); 
-      setError(null);
-      try {
-        if (isEdit) {
-          await apiCall('updateAd', { ...form, images, adId, postedBy: user.userId });
-          toast('Advertisement updated.', 'success');
-          navigate('details', { adId });
-        } else {
-          await apiCall('createAd', { ...form, images, postedBy: user.userId, postedByName: user.name });
-          toast('Advertisement posted successfully!', 'success');
-          navigate('home');
-        }
-      } catch (err) { 
-        setError(err.message); 
-      } finally { 
-        setSubmitting(false); 
-      }
-    };
-  
-    if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
-    if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
-  
-    // NEW (v10): live preview of the fallback photo this ad would use if
-    // no photos are uploaded, so the business can see what shows up.
-    const previewFallbackImage = images.length === 0 ? getDefaultAdImage(form) : null;
-  
-    return (
-      <div className="container form-page">
+    } catch (err) { setError(err.message); } finally { setSubmitting(false); }
+  };
+
+  if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
+  if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
+
+  const previewFallbackImage = images.length === 0 ? getDefaultAdImage(form) : null;
+
+  return (
+    <div className="container ad-form-page">
+      <div className="ad-form-intro form-card">
+        <span className="free-pill">100% free to post</span>
         <h1>{isEdit ? 'Edit your requirement' : t('postAJob')}</h1>
-        <p style={{ color: 'var(--text-mute)', marginBottom: 24 }}>
-          {isEdit ? 'Update the details below — changes go live immediately.' : 'Reach local job seekers directly — free to post.'}
+        <p>
+          {isEdit
+            ? 'Update the details below — changes go live immediately.'
+            : 'Fill in the details in about 2 minutes. Job seekers will contact you directly by call or WhatsApp.'}
         </p>
-  
-        <form className="card" onSubmit={submit}>
-          <div className="form-section-title">Business / workplace details</div>
-          <div className="form-grid">
-            <div className="field"><label>Business / workplace name *</label>
-              <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." /></div>
-            <div className="field"><label>Business type</label>
-              <select
-                value={form.businessType}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  // Mirrors the worker-category behaviour: clear the
-                  // custom text whenever the user picks something other
-                  // than "Other", so a stale value can't be resubmitted.
-                  setForm((f) => ({ ...f, businessType: next, customBusinessType: next === 'Other' ? f.customBusinessType : '' }));
-                }}
-              >
-                {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select></div>
-            {form.businessType === 'Other' && (
-              <div className="field full custom-category-field">
-                <label>What kind of business is this? *</label>
-                <input
-                  value={form.customBusinessType}
-                  onChange={(e) => set('customBusinessType', e.target.value)}
-                  placeholder="Describe your business type, e.g. NGO, Farm, Studio, Clinic"
-                />
-              </div>
-            )}
-            <div className="field full"><label>Contact phone (used for WhatsApp "Apply Now")</label>
-              <input value={form.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="10-digit mobile number" /></div>
+      </div>
+
+      <form onSubmit={submit} noValidate>
+        <FormSection num={1} icon="📞" title="Contact details" subtitle="Job seekers will reach you directly on this number">
+          <div className="field">
+            <label>Mobile / WhatsApp number</label>
+            <input
+              type="tel" inputMode="numeric" maxLength={10}
+              value={form.contactPhone}
+              onChange={(e) => set('contactPhone', digitsOnly(e.target.value))}
+              placeholder="10-digit mobile number"
+            />
+            <div className="field-hint">Used for the "Call" and WhatsApp "Apply Now" buttons.</div>
           </div>
-  
-          <div className="form-section-title">Job details</div>
+        </FormSection>
+
+        <FormSection num={2} icon="🏢" title="Business information" subtitle="Tell workers who is hiring">
+          <div className="field">
+            <label>Business / workplace name *</label>
+            <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." />
+          </div>
+          <div className="field">
+            <label>Business type</label>
+            <ChipGroup
+              options={BUSINESS_TYPES}
+              value={form.businessType}
+              onChange={(next) => setForm((f) => ({ ...f, businessType: next, customBusinessType: next === 'Other' ? f.customBusinessType : '' }))}
+            />
+          </div>
+          {form.businessType === 'Other' && (
+            <div className="field custom-category-field">
+              <label>What kind of business is this? *</label>
+              <input value={form.customBusinessType} onChange={(e) => set('customBusinessType', e.target.value)} placeholder="e.g. NGO, Farm, Studio, Clinic" />
+            </div>
+          )}
+        </FormSection>
+
+        <FormSection num={3} icon="🧰" title="Job details" subtitle="What kind of worker do you need?">
+          <div className="field">
+            <label>Job title *</label>
+            <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="e.g. Machine Operator" />
+          </div>
+          <div className="field">
+            <label>Worker category</label>
+            <ChipGroup
+              options={WORKER_CATEGORIES}
+              value={form.workerCategory}
+              onChange={(next) => setForm((f) => ({ ...f, workerCategory: next, customCategory: next === 'Other' ? f.customCategory : '' }))}
+            />
+          </div>
+          {form.workerCategory === 'Other' && (
+            <div className="field custom-category-field">
+              <label>What kind of worker are you looking for? *</label>
+              <input value={form.customCategory} onChange={(e) => set('customCategory', e.target.value)} placeholder="e.g. Gardener, Painter, Data Entry" />
+            </div>
+          )}
+          <div className="field">
+            <label>Number of workers needed</label>
+            <div className="stepper">
+              <button type="button" onClick={() => set('numWorkers', Math.max(1, workers - 1))} aria-label="Fewer workers">−</button>
+              <input
+                inputMode="numeric" value={form.numWorkers}
+                onChange={(e) => set('numWorkers', digitsOnly(e.target.value))}
+                onBlur={() => set('numWorkers', workers)}
+              />
+              <button type="button" onClick={() => set('numWorkers', workers + 1)} aria-label="More workers">+</button>
+            </div>
+          </div>
+          <label className="toggle-row">
+            <input type="checkbox" checked={!!form.urgent} onChange={(e) => set('urgent', e.target.checked)} />
+            <span>
+              <strong>🔥 Hiring today</strong>
+              <small>Mark as urgent — shown with an Urgent badge and in the "Hiring Today" section.</small>
+            </span>
+          </label>
+        </FormSection>
+
+        <FormSection num={4} icon="💰" title="Pay & requirements" subtitle="Clear pay and hours get more responses">
+          <div className="field">
+            <label>Monthly salary (₹)</label>
+            <div className="field-row">
+              <input inputMode="numeric" value={form.salaryMin} onChange={(e) => set('salaryMin', e.target.value)} placeholder="Min, e.g. 12000" />
+              <span className="field-row-sep">to</span>
+              <input inputMode="numeric" value={form.salaryMax} onChange={(e) => set('salaryMax', digitsOnly(e.target.value))} placeholder="Max, e.g. 15000" />
+            </div>
+            <SalaryBenchmarkHint category={categoryOf({ workerCategory: form.workerCategory, customCategory: form.customCategory })} />
+          </div>
           <div className="form-grid">
-            <div className="field"><label>Job title *</label>
-              <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="e.g. Machine Operator" /></div>
-            <div className="field"><label>Worker category</label>
-              <select value={form.workerCategory} onChange={(e) => set('workerCategory', e.target.value)}>
-                {WORKER_CATEGORIES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select></div>
-            {form.workerCategory === 'Other' && (
-              <div className="field full custom-category-field">
-                <label>What kind of worker are you looking for? *</label>
-                <input value={form.customCategory} onChange={(e) => set('customCategory', e.target.value)} placeholder="Describe the worker category, e.g. Gardener, Painter, Data Entry" />
-              </div>
-            )}
-            <div className="field"><label>Number of workers needed</label>
-              <input type="number" min="1" value={form.numWorkers} onChange={(e) => set('numWorkers', e.target.value)} /></div>
             <div className="field">
-              <label>Salary (monthly, ₹)</label>
-              <input value={form.salary} onChange={(e) => set('salary', e.target.value)} placeholder="e.g. 12000-15000" />
-              <SalaryBenchmarkHint category={categoryOf({ workerCategory: form.workerCategory, customCategory: form.customCategory })} />
+              <label>Working hours</label>
+              <input value={form.workingHours} onChange={(e) => set('workingHours', e.target.value)} placeholder="e.g. 9 AM – 6 PM, 6 days/week" />
             </div>
-            <div className="field"><label>Education requirement</label>
-              <input value={form.education} onChange={(e) => set('education', e.target.value)} placeholder="e.g. 10th pass / none" /></div>
-            <div className="field"><label>Experience required</label>
-              <input value={form.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. 1+ years / freshers ok" /></div>
-            <div className="field"><label>Working hours</label>
-              <input value={form.workingHours} onChange={(e) => set('workingHours', e.target.value)} placeholder="e.g. 9 AM - 6 PM, 6 days/week" /></div>
-            <div className="field"><label>Skills required</label>
-              <input value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="e.g. stitching, ironing" /></div>
-            <div className="field full">
-              <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input type="checkbox" checked={!!form.urgent} onChange={(e) => set('urgent', e.target.checked)} />
-                🔥 Mark as urgent — hiring today / immediate joining
-              </label>
+            <div className="field">
+              <label>Experience required</label>
+              <input value={form.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. 1+ years / freshers ok" />
             </div>
-            <div className="field full"><label>Description</label>
-              <textarea value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Describe the role, responsibilities and any other details..." /></div>
+            <div className="field">
+              <label>Education requirement</label>
+              <input value={form.education} onChange={(e) => set('education', e.target.value)} placeholder="e.g. 10th pass / none" />
+            </div>
+            <div className="field">
+              <label>Skills required</label>
+              <input value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="e.g. stitching, ironing" />
+            </div>
           </div>
-  
-          <div className="form-section-title">Workplace photos</div>
+        </FormSection>
+
+        <FormSection num={5} icon="📝" title="Job description" subtitle="Responsibilities, benefits, joining date">
+          <div className="field">
+            <textarea
+              value={form.description}
+              onChange={(e) => set('description', e.target.value)}
+              placeholder="Describe the role (e.g. daily duties, free lunch, overtime pay, immediate joining)..."
+            />
+          </div>
+        </FormSection>
+
+        <FormSection num={6} icon="📷" title="Photos" subtitle="Real workplace photos build trust (optional)">
           <ImageUploader images={images} onChange={setImages} />
-          {/* NEW (v10): explain + preview the automatic fallback photo */}
           <div className="photo-fallback-hint">
             {previewFallbackImage ? (
               <>
                 <img src={previewFallbackImage} alt="Representative preview" className="photo-fallback-hint-img" />
                 <p>
-                  Didn't add any photos yet? No problem — until you upload real workplace photos,
-                  this representative photo (matched to your business type) will be shown instead,
-                  so your listing never looks empty.
+                  No photos yet? We'll show this representative photo (matched to your business type)
+                  until you upload real ones, so your listing never looks empty.
                 </p>
               </>
             ) : (
-              <p>✓ Your uploaded photo(s) above will be shown on this listing.</p>
+              <p>✓ Your uploaded photos will be shown on this listing.</p>
             )}
           </div>
-  
-          <div className="form-section-title">Workplace location</div>
+        </FormSection>
+
+        <FormSection num={7} icon="📍" title="Workplace location" subtitle="Pin the map so nearby workers can find you">
           <LocationPicker
             lat={form.locationLat} lng={form.locationLng} address={form.locationAddress}
             onChange={(lat, lng, address) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng, locationAddress: address }))}
           />
-  
-          {error && <div className="error-box" style={{ marginTop: 18 }}>{error}</div>}
-          <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-            <button className="btn btn-primary btn-block" disabled={submitting}>
-              {submitting ? 'Saving...' : (isEdit ? 'Save changes' : 'Post advertisement')}
-            </button>
-            {isEdit && <button type="button" className="btn btn-outline" onClick={() => navigate('details', { adId })}>Cancel</button>}
-          </div>
-        </form>
-      </div>
-    );
-  }
+        </FormSection>
+
+        {error && <div className="error-box" style={{ marginBottom: 14 }}>{error}</div>}
+
+        <div className="form-actions-bar">
+          {isEdit && (
+            <button type="button" className="btn btn-outline" onClick={() => navigate('details', { adId })}>Cancel</button>
+          )}
+          <button className="btn btn-primary btn-block" disabled={submitting}>
+            {submitting ? 'Saving...' : (isEdit ? 'Save changes' : 'Post advertisement')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
    
    // ------------------------------------------------------------
    // IMAGE UPLOADER
