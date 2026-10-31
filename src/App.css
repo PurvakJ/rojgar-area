@@ -3267,7 +3267,7 @@ img { max-width: 100%; height: auto; }
   /* ---------- FIX 2: desktop "Post a Requirement" = 80% of screen ---------- */
   @media (min-width: 1025px) {
     .container.ad-form-page {
-      width: 80%;
+      width: 68%;
       max-width: none;
     }
   }
