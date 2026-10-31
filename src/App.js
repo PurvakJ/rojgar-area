@@ -213,6 +213,31 @@
      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
    });
    
+   // Random "people got the job" number, between 2,343 and 9,000.
+  // Generated fresh each time the Home page loads (see HomePage).
+  const PLACED_MIN = 2343;
+  const PLACED_MAX = 9000;
+  function randomPlacedCount() {
+    return Math.floor(Math.random() * (PLACED_MAX - PLACED_MIN + 1)) + PLACED_MIN;
+  }
+
+  // Smoothly counts from 0 up to `target` (ease-out) for a nice effect.
+  function useCountUp(target, duration = 1800) {
+    const [value, setValue] = useState(0);
+    useEffect(() => {
+      let raf;
+      const start = performance.now();
+      const tick = (now) => {
+        const p = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        setValue(Math.round(target * eased));
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(raf);
+    }, [target, duration]);
+    return value;
+  }
    // ------------------------------------------------------------
    // CONFIG
    // ------------------------------------------------------------
@@ -317,6 +342,7 @@
    
    const I18N = {
      en: {
+       placedLabel: 'people got a job through Rojgar AREA',
        home: 'Home', browseJobs: 'Browse Jobs', postRequirement: 'Post a Requirement',
        findWorkers: 'Find Workers', myDashboard: 'My Dashboard', admin: 'Admin',
        login: 'Log in', signup: 'Sign up', logout: 'Log out',
@@ -336,6 +362,7 @@
        downloadApp: '📥 Download App'
      },
      hi: {
+       placedLabel: 'लोगों को Rojgar AREA से नौकरी मिली',
        home: 'होम', browseJobs: 'नौकरियां देखें', postRequirement: 'ज़रूरत पोस्ट करें',
        findWorkers: 'कामगार खोजें', myDashboard: 'मेरा डैशबोर्ड', admin: 'एडमिन',
        login: 'लॉग इन', signup: 'साइन अप', logout: 'लॉग आउट',
@@ -355,6 +382,7 @@
        downloadApp: '📥 ऐप डाउनलोड करें'
      },
      pa: {
+       placedLabel: 'ਲੋਕਾਂ ਨੂੰ Rojgar AREA ਰਾਹੀਂ ਨੌਕਰੀ ਮਿਲੀ',
        home: 'ਹੋਮ', browseJobs: 'ਨੌਕਰੀਆਂ ਵੇਖੋ', postRequirement: 'ਲੋੜ ਪੋਸਟ ਕਰੋ',
        findWorkers: 'ਕਾਮੇ ਲੱਭੋ', myDashboard: 'ਮੇਰਾ ਡੈਸ਼ਬੋਰਡ', admin: 'ਐਡਮਿਨ',
        login: 'ਲਾਗਇਨ', signup: 'ਸਾਈਨ ਅੱਪ', logout: 'ਲਾਗਆਉਟ',
@@ -1693,7 +1721,9 @@ function Footer({ navigate }) {
      ];
    
      const [heroImageIndex, setHeroImageIndex] = useState(0);
-   
+     const [placedCount] = useState(() => randomPlacedCount()); // new random number on every visit/refresh
+     const animatedPlaced = useCountUp(placedCount);
+
      useEffect(() => {
       const interval = setInterval(() => {
         setHeroImageIndex((prev) => (prev + 1) % heroImages.length);
@@ -1716,7 +1746,13 @@ function Footer({ navigate }) {
              <div className="hero-overlay"></div>
            </div>
            <div className="hero-particles"></div>
+           
            <div className="container">
+           <div className="hero-placed animate-slide-up">
+  <span className="hero-placed-num">{animatedPlaced.toLocaleString('en-IN')}+</span>
+  <span className="hero-placed-label">{t('placedLabel')}</span>
+</div>
+<br></br>
              <div className="hero-badge animate-float">🇮🇳 India's First Local Job Platform</div>
              <h1 className="animate-slide-up">{t('heroTitle')}</h1>
              <p className="animate-slide-up-delay">{t('heroSubtitle')}</p>
@@ -1762,6 +1798,7 @@ function Footer({ navigate }) {
                  <strong className="counter-animate">{allAds ? activeCount : '—'}</strong> active requirements · <strong>{allAds?.length || 0}</strong> total listings
                </span>
              </div>
+             
            </div>
          </div>
    
@@ -4099,3 +4136,4 @@ function AdFormPage({ navigate, mode, adId }) {
    // EXPORT
    // ==============================================================
    export default App;
+
