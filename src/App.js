@@ -1,206 +1,30 @@
 /* ==========================================================
-   Rojgar AREA — Frontend (Enhanced v10)
-   Plain React 18 + Babel-standalone (no build step).
-   Backend: Google Apps Script Web App (Code.gs)
-   Images:  Cloudinary unsigned upload
-   Map:     Leaflet + OpenStreetMap tiles (no API key needed)
+   Rojgar AREA — Frontend (v12 — SEO / indexing update)
+   Plain React 18 (Create React App). Backend: Google Apps Script.
+   Images: Cloudinary unsigned upload. Map: Leaflet + OpenStreetMap.
 
-   NEW IN THIS VERSION (v10):
-   - Added "Teacher / Professor / Tutor" to WORKER_CATEGORIES and
-     "Education" + "Homekeeper" to BUSINESS_TYPES. Both the "Post a
-     Requirement" dropdowns AND the Browse Jobs / Find Workers filter
-     dropdowns are built dynamically from these two arrays already
-     (buildCategoryOptions / buildBusinessTypeOptions, and the
-     WorkerFilterPanel category select), so simply adding these
-     values here is enough — no other wiring was needed. Added
-     matching icons (CATEGORY_ICONS) and a home-page category image
-     (CATEGORY_IMAGES) for the new worker category too.
-   - DEFAULT PLACEHOLDER PHOTOS: if a business doesn't upload any
-     workplace photos when posting a requirement, the ad no longer
-     shows a blank "No photo" box. It now shows a relevant stock
-     photo based on the ad's business type (e.g. a classroom photo
-     for "Education", a home-interior photo for "Homekeeper", a shop
-     front for "Shop / Retail", etc.) — see DEFAULT_BUSINESS_TYPE_IMAGES,
-     getDefaultAdImage() and getAdDisplayImages() below. This NEVER
-     touches or replaces real uploaded photos — it only fills in when
-     ad.images is empty, on both the ad card grid and the ad details
-     page gallery. AdFormPage also now tells the business this will
-     happen so nobody is confused about why a photo appears.
-   - This frontend is paired with a new "fast" Code.gs that adds a
-     CacheService caching layer in front of every Google Sheets read
-     (see Code.gs's "FAST-FETCH CACHE LAYER" section), so Home /
-     Browse Jobs / Find Workers load noticeably faster under repeat
-     traffic. No frontend API contract changed — apiCall() calls are
-     unchanged, only the backend got faster.
+   NEW IN v12 (SEO + indexing):
+   - Real <a href> links everywhere (AppLink) so Google can crawl
+     /browse, /workers, /post, /register, legal pages, etc. Clicking
+     still navigates instantly without a reload.
+   - Per-page <title>, meta description, canonical (www domain),
+     Open Graph/Twitter tags and robots meta set at runtime
+     (SEO_PAGES + applySeo). See SEO_PAGES to flip a page between
+     index / noindex.
+   - JSON-LD structured data: Organization + WebSite on every page,
+     JobPosting on advertisement pages (for Google for Jobs).
+   - Home page gets a crawlable text block with internal links.
+   - IMPORTANT (not fixable in this file): fix the canonical/og:url in
+     public/index.html (it points to kaamboard.in), add public/
+     sitemap.xml + robots.txt, and make sure your host rewrites all
+     paths to index.html (vercel.json / _redirects).
 
-   CARRIED OVER FROM v9:
-   - "Post a Requirement" has a custom Business Type. The Business
-     Type dropdown includes an "Other" option; picking it reveals a
-     required text input ("What kind of business is this?"), exactly
-     mirroring the existing Worker Category "Other" -> customCategory
-     pattern.
-   - The saved custom business type is what actually displays
-     everywhere a business type is shown (ad cards, ad details,
-     admin/business labels) — see the businessTypeOf(ad) helper,
-     which mirrors categoryOf(ad).
-   - The "Business type" filter dropdown on Browse Jobs is BUILT FROM
-     THE DATA (buildBusinessTypeOptions), the same way the "Worker
-     category" filter already works — so any custom business type
-     someone posts (e.g. "NGO", "Farm", "Studio") automatically shows
-     up as a selectable filter option, and filtering matches against
-     the resolved custom label instead of the raw "Other" value.
-   - Backend (Code.gs) has a matching customBusinessType column on
-     Advertisements, with the same validation and clearing rules as
-     customCategory.
-
-   CARRIED OVER FROM v8:
-   - "📥 Download App" button added to the navbar (desktop + the
-     mobile hamburger dropdown, since it lives inside the shared
-     nav-menu-wrapper) and to the footer's Quick Links column.
-     Both open CONFIG.APP_DOWNLOAD_URL in a new tab. The URL below
-     is a direct-download link built from the Google Drive file you
-     shared (drive.google.com/file/d/13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2/view):
-       https://drive.google.com/uc?export=download&id=13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2
-     NOTE: this only works as a direct download if the Drive file's
-     sharing setting is "Anyone with the link". If you ever swap the
-     file, just update CONFIG.APP_DOWNLOAD_URL — nothing else needs
-     to change. For very large files Google sometimes shows a
-     "can't scan for viruses" confirmation page instead of an
-     instant download — that's a Drive limitation, not a bug here.
-
-   CARRIED OVER FROM v7:
-   - Real URL routing via the browser History API — no more router
-     library, but the address bar now actually reflects the page:
-       /                 -> Home
-       /browse           -> Browse Jobs
-       /browse/:adId     -> Advertisement details
-       /workers          -> Find Workers
-       /workers/:userId  -> Worker profile
-       /post             -> Post a requirement
-       /edit/:adId       -> Edit a requirement
-       /dashboard        -> My Dashboard
-       /admin            -> Admin Dashboard
-       /login, /register -> Auth pages
-     Back/forward buttons, refresh, and shared/bookmarked links to
-     e.g. https://rojgararea.online/browse/<adId> now work. See the
-     "ROUTER" section below (pathForRoute / routeFromPath) and the
-     App() component's navigate()/popstate wiring.
-     IMPORTANT DEPLOYMENT NOTE: because this is a single-page app,
-     your static host must be configured to serve index.html for
-     ANY path (a "SPA rewrite" / catch-all fallback), otherwise a
-     direct visit or refresh on e.g. /browse/abc123 will 404. See
-     the deployment note at the bottom of this comment block.
-   - Home page now shows only the first 6 Popular Job Categories,
-     laid out in a single row (categories-grid-line — horizontally
-     scrollable on narrow screens instead of wrapping), and only
-     the first 6 Recently Posted Requirements, laid out in a fixed
-     3-across grid (grid-home-recent) so 6 items form 2 rows of 3.
-
-   DEPLOYMENT NOTE (SPA rewrites for the new URL routing):
-   - Netlify: add a file called `_redirects` (no extension) to your
-     publish folder with this single line:
-         /*    /index.html   200
-   - Vercel: add a `vercel.json` with:
-         { "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }
-   - Apache: add a `.htaccess` in the same folder as index.html:
-         RewriteEngine On
-         RewriteBase /
-         RewriteRule ^index\.html$ - [L]
-         RewriteCond %{REQUEST_FILENAME} !-f
-         RewriteCond %{REQUEST_FILENAME} !-d
-         RewriteRule . /index.html [L]
-   - Nginx:
-         location / { try_files $uri /index.html; }
-   Without one of these, only "/" will load correctly when visited
-   directly — in-app navigation (clicking links) will still work
-   fine either way, since that never leaves the page.
-
-   CARRIED OVER FROM v6:
-   - "Browse Jobs" and "Find Workers" no longer show a permanent
-     filter sidebar on mobile. Filters live inside a hamburger-
-     triggered slide-in drawer, opened with a "☰ Filters" button next
-     to the page heading. Desktop shows a persistent left sidebar.
-   - "My Dashboard" section switcher (My posted ads / Saved
-     advertisements / My reports / My Profile) opens from a
-     "☰ Menu" hamburger drawer on mobile, and from a row of tabs on
-     desktop.
-   - My Dashboard now opens on "Saved advertisements" by default
-     for worker-only accounts (who can't post ads), and on
-     "My posted ads" for business/both/admin accounts.
-
-   CARRIED OVER FROM v5:
-   - Worker profile: phone number is now MANDATORY for worker/both
-     accounts (enforced client-side in "My Profile" and server-side in
-     updateWorkerProfile), and is shown on every worker card and on the
-     worker's public profile page so businesses in "Find Workers" can
-     always reach them.
-   - Worker profile: optional public email field (separate from the
-     login email), optional profile photo (shown as a circular avatar;
-     falls back to a generic person icon when not set), and optional
-     multi-image "resume" upload (photos of a resume / certificates /
-     ID proof) — all via the same Cloudinary unsigned upload used for
-     advertisement photos.
-   - Worker profile page and Worker Browse cards now show a
-     "Get Directions" button / the worker's phone number next to a
-     WhatsApp button, mirroring the advertisement details page.
-   - Advertisement details page now shows the contact phone number as
-     a tappable "Call" link right next to the WhatsApp button.
-   - Footer buttons are now all functional: Privacy Policy, Terms of
-     Service and Cookie Policy open an in-app modal with real content,
-     and a new "Contact Developer" / "About Us" action opens a modal
-     with the developer's logo, email and website.
-
-   CARRIED OVER FROM v4:
-   - Three-role permission model, same login for everyone (worker /
-     business / both / admin). Posting is gated with canPostAds(user)
-     in the nav, in routing, and server-side in createAd.
-   - "My Profile" requires a dropped map pin before saving a
-     worker/both profile (an address alone is not enough for
-     "Workers near you" to find you).
-   - Admin can suspend/restore a worker or business profile.
-   - Workers have a real location (lat/lng/address), settable from
-     "My Profile". Workers Browse page mirrors the Jobs Browse page:
-     location banner, radius filter, nearest-first sort, distance chip.
-   - Worker profiles (create/edit, browse, view + review)
-   - Reviews & star ratings (businesses <-> workers)
-   - WhatsApp "Apply Now" deep link
-   - Urgent / "Hiring Today" jobs
-   - Salary benchmarking hint on the post form
-   - Verified badge (admin-controlled)
-   - Referral codes
-   - EN / Hindi / Punjabi language switch
-
-   IMAGE UPLOAD ("Unknown API key" error):
-   - Image uploads go straight from the browser to Cloudinary using
-     CONFIG.CLOUDINARY below. "Unknown API key" / "Unknown API key" is
-     a Cloudinary-side error, not an Apps Script error — it means
-     cloudName and/or uploadPreset don't match a real Cloudinary
-     account, OR the upload preset exists but is not set to
-     "Unsigned" (Cloudinary Dashboard > Settings > Upload > Upload
-     presets). Fix by replacing BOTH values below with your own
-     Cloudinary cloud name and an unsigned upload preset you created.
-
-   NEW IN THIS VERSION (v11 — this edit):
-   - PRIVACY: On the "Find Workers" listing cards (WorkerCard), the
-     worker's phone number is now only shown to logged-in visitors.
-     Logged-out visitors see everything else on the card (name,
-     skills, location, rating, bio) but not the raw phone number —
-     they already get a "🔒 Log in to contact" button instead of the
-     WhatsApp button, this just extends the same login-gate to the
-     plain phone number line so it can't be scraped from the public
-     listing without logging in. The full worker profile page was
-     already login-gated (v11 note below); this only affects the
-     outer list/card view.
-   - DEFAULT_CATEGORY_IMAGE: the Home page's "Popular Job Categories"
-     row now always shows a photo for every category tile, even for
-     brand-new / custom worker categories that don't have a matching
-     entry in CATEGORY_IMAGES yet. Previously such categories fell
-     back to `null` and rendered as a plain icon+text tile with no
-     photo; now they fall back to a generic relevant work photo via
-     DEFAULT_CATEGORY_IMAGE, so newly added categories look just as
-     polished as the built-in ones with zero extra config.
+   Earlier versions (v4–v11): role model, worker profiles, reviews,
+   WhatsApp apply, urgent jobs, verified badge, referrals, EN/HI/PA,
+   History-API routing, filter drawers, default placeholder photos,
+   custom business types, Download App button, login-gated details.
    ========================================================== */
-   import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo,} from 'react';
+   import React, { useState, useEffect, useRef, useContext, createContext, useCallback, useMemo } from 'react';
    import './App.css';
    import L from 'leaflet';
    import 'leaflet/dist/leaflet.css';
@@ -214,62 +38,54 @@
    });
    
    // Random "people got the job" number, between 2,343 and 9,000.
-  // Generated fresh each time the Home page loads (see HomePage).
-  const PLACED_MIN = 2343;
-  const PLACED_MAX = 9000;
-  function randomPlacedCount() {
-    return Math.floor(Math.random() * (PLACED_MAX - PLACED_MIN + 1)) + PLACED_MIN;
-  }
-
-  // Smoothly counts from 0 up to `target` (ease-out) for a nice effect.
-  function useCountUp(target, duration = 1800) {
-    const [value, setValue] = useState(0);
-    useEffect(() => {
-      let raf;
-      const start = performance.now();
-      const tick = (now) => {
-        const p = Math.min((now - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - p, 3);
-        setValue(Math.round(target * eased));
-        if (p < 1) raf = requestAnimationFrame(tick);
-      };
-      raf = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(raf);
-    }, [target, duration]);
-    return value;
-  }
+   const PLACED_MIN = 2343;
+   const PLACED_MAX = 9000;
+   function randomPlacedCount() {
+     return Math.floor(Math.random() * (PLACED_MAX - PLACED_MIN + 1)) + PLACED_MIN;
+   }
+   
+   // Smoothly counts from 0 up to `target` (ease-out).
+   function useCountUp(target, duration = 1800) {
+     const [value, setValue] = useState(0);
+     useEffect(() => {
+       let raf;
+       const start = performance.now();
+       const tick = (now) => {
+         const p = Math.min((now - start) / duration, 1);
+         const eased = 1 - Math.pow(1 - p, 3);
+         setValue(Math.round(target * eased));
+         if (p < 1) raf = requestAnimationFrame(tick);
+       };
+       raf = requestAnimationFrame(tick);
+       return () => cancelAnimationFrame(raf);
+     }, [target, duration]);
+     return value;
+   }
+   
    // ------------------------------------------------------------
    // CONFIG
    // ------------------------------------------------------------
    const CONFIG = {
      APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycby573QoGBB-KaxRaSFYfVwWypdDxxkedtkq4v2PRmHygH3kYDixeusGB1zzas1tV0QS/exec',
      CLOUDINARY: {
-       // TODO: replace with YOUR Cloudinary cloud name (Dashboard, top-left)
-       // and an UNSIGNED upload preset you created for this project.
-       // The current values below are almost certainly wrong for your
-       // account, which is why uploads fail with "Unknown API key".
        cloudName: 'dm9gg8yss',
        uploadPreset: 'images'
      },
-     // "📥 Download App" button (navbar + footer) opens this URL in a new
-     // tab. Built from your Google Drive share link — swap the id below
-     // if you ever replace the file. Requires the Drive file's sharing
-     // to be set to "Anyone with the link" to download directly.
      APP_DOWNLOAD_URL: 'https://drive.google.com/uc?export=download&id=13tpWVUscuoqtFaF9vDq4If81RHrt2Qf2'
    };
    
-   // NEW (v10): "Teacher / Professor / Tutor" added as a predefined
-   // worker category (before "Other").
+   // Canonical site URL — must match the property you verified in Google
+   // Search Console (you verified the www version).
+   const SITE_URL = 'https://www.rojgararea.online';
+   const SITE_NAME = 'Rojgar AREA';
+   const SITE_LOGO = 'https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png';
+   
    const WORKER_CATEGORIES = [
      'Skilled Labour', 'Unskilled Labour', 'Driver', 'Electrician', 'Plumber',
      'Mason', 'Welder', 'Machine Operator', 'Helper', 'Security Guard',
      'Tailor / Stitching', 'Packing Staff', 'Delivery Staff', 'Housekeeping',
      'Cook / Kitchen Staff', 'Teacher / Professor / Tutor', 'Other'
    ];
-   // NEW (v10): "Education" and "Homekeeper" added as predefined business
-   // types (before "Other"). "Other" still lets a business describe its
-   // own custom type — see the customBusinessType field on the post form
-   // and businessTypeOf()/buildBusinessTypeOptions() below.
    const BUSINESS_TYPES = [
      'Factory', 'Shop / Retail', 'Restaurant / Hotel', 'Construction Site',
      'Warehouse', 'Workshop', 'Office', 'Salon', 'Education', 'Homekeeper', 'Other'
@@ -284,8 +100,6 @@
    ];
    const RADIUS_OPTIONS = [2, 5, 10, 20, 50];
    const HOME_DEFAULT_RADIUS = 10;
-   // Home page now shows only 6 Popular Job Categories (single line)
-   // and only 6 Recently Posted Requirements (3x2 grid) — see v7 notes above.
    const HOME_MAX_RESULTS = 6;
    const HOME_MAX_CATEGORIES = 6;
    const DEFAULT_CENTER = { lat: 30.9010, lng: 75.8573 };
@@ -296,18 +110,15 @@
      { value: 'both', label: 'Both' }
    ];
    
-   // Icons for worker categories
    const CATEGORY_ICONS = {
      'Skilled Labour': '🔧', 'Unskilled Labour': '💪', 'Driver': '🚗', 'Electrician': '⚡',
      'Plumber': '🔧', 'Mason': '🏗️', 'Welder': '🔥', 'Machine Operator': '🔩',
      'Helper': '🤝', 'Security Guard': '🛡️', 'Tailor / Stitching': '🧵', 'Packing Staff': '📦',
      'Delivery Staff': '🛵', 'Housekeeping': '🧹', 'Cook / Kitchen Staff': '👨‍🍳',
-     // NEW (v10)
      'Teacher / Professor / Tutor': '📚',
      'Other': '📋'
    };
    
-   // Enhanced category images for hero section
    const CATEGORY_IMAGES = {
      'Skilled Labour': 'https://digitallabourchowk.com/wp-content/uploads/2024/09/SM916619-1024x683.jpg',
      'Driver': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlSwHhlKK2UPSAOzRpYwzQ7LLp5EqwWiorrK1KjNuUm0QR1m9S7GoZsQo&s=10',
@@ -317,18 +128,9 @@
      'Welder': 'https://media.istockphoto.com/id/835302104/photo/preparing-to-continue-welding-metals.jpg?s=612x612&w=0&k=20&c=845ayUPdfzsS_z-TI-ZeAJXj7po-0qb2Xn4TIGkehYo=',
      'Security Guard': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSwHsnrqLfEIoROzMQ4ylJHkJS2c8q9NYYp7LNSzQYdl7EbB2mPG9ezWKA7&s=10',
      'Cook / Kitchen Staff': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSfcow0HnkKf7cd2uj4wlSYfiP3SuV18FTOhDSj0Z3BnA&s=10',
-     // NEW (v10): classroom/tutoring photo for the new worker category
      'Teacher / Professor / Tutor': 'https://img.magnific.com/premium-photo/teachers-day-india-handsome-indian-man-teaching_548646-54570.jpg?w=360'
    };
    
-   // NEW (v11): generic fallback photo used on the Home page's "Popular
-   // Job Categories" tiles whenever a category (typically a brand-new
-   // custom worker category added via the "Other" field, or any preset
-   // category that hasn't had a CATEGORY_IMAGES entry added yet) has no
-   // matching entry in CATEGORY_IMAGES above. Without this, such a
-   // category tile rendered with no photo at all (icon + text only).
-   // Keep this as a neutral, general "people at work" photo so it looks
-   // reasonable for literally any category name.
    const DEFAULT_CATEGORY_IMAGE = 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=600&h=400&fit=crop';
    
    // ------------------------------------------------------------
@@ -469,9 +271,6 @@
      return (ad.workerCategory === 'Other' && ad.customCategory) ? ad.customCategory : (ad.displayCategory || ad.workerCategory);
    }
    
-   // Resolves to the business's own custom label when businessType is
-   // 'Other', otherwise falls back to the server's displayBusinessType
-   // (or the raw businessType if the ad predates this field).
    function businessTypeOf(ad) {
      return (ad.businessType === 'Other' && ad.customBusinessType)
        ? ad.customBusinessType
@@ -484,11 +283,6 @@
      return Array.from(set).sort();
    }
    
-   // Mirrors buildCategoryOptions() above, but for Business Type —
-   // starts from the preset BUSINESS_TYPES list (minus "Other") and
-   // adds in any custom business types that have actually been
-   // posted, so the Browse Jobs filter dropdown always reflects what's
-   // really out there.
    function buildBusinessTypeOptions(ads) {
      const set = new Set(BUSINESS_TYPES.filter((c) => c !== 'Other'));
      (ads || []).forEach((a) => { if (businessTypeOf(a)) set.add(businessTypeOf(a)); });
@@ -496,16 +290,8 @@
    }
    
    // ------------------------------------------------------------
-   // DEFAULT PLACEHOLDER IMAGES (NEW v10)
+   // DEFAULT PLACEHOLDER IMAGES
    // ------------------------------------------------------------
-   // Used whenever a business hasn't uploaded any workplace photos —
-   // instead of a bare "No photo" box, ad cards and the details page
-   // show a relevant stock photo matched to the ad's business type
-   // (falling back to the worker category's home-page image, then to
-   // a generic workplace photo). This NEVER overwrites real uploaded
-   // photos — everything that displays an ad's photos should read
-   // through getAdDisplayImages(ad) below rather than ad.images
-   // directly, so real photos always take priority automatically.
    const DEFAULT_BUSINESS_TYPE_IMAGES = {
      'Factory': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQIvRfcZIue1oEYsghRQQJotjDWnVSs8fVdaIXmv5LHhkSS6n15VSpvoTWB&s=10',
      'Shop / Retail': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQsy6r2sOQeFTUJVg10cmnW6WENOBNQHQsDJEVyt29ZxA&s=10',
@@ -515,16 +301,11 @@
      'Workshop': 'https://i.postimg.cc/qMGg2X1J/Whats_App_Image_2026_01_30_at_17_48_42.jpg',
      'Office': 'https://img.magnific.com/premium-photo/professional-working-person_170153-1259.jpg?semt=ais_hybrid&w=740&q=80',
      'Salon': 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&h=400&fit=crop',
-     // NEW (v10): school/college photo for the "Education" business type
      'Education': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcREjYDDVF5S4wiFqJpCqEoK8qwDmgmmIt8xU3ryahgHZJ5kGqxrX8BTWTQ&s=10',
-     // NEW (v10): home/domestic-help photo for the "Homekeeper" business type
      'Homekeeper': 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQajR9N_BAr-IrdhLkp64zxeu4R6Q4TwMYi71RXuPYHZre6Lt-kOX_1bhmL&s=10'
    };
    const DEFAULT_FALLBACK_AD_IMAGE = 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=600&h=400&fit=crop';
    
-   // Picks the best available placeholder for an ad with no uploaded
-   // photos: business type image first, then the worker-category home
-   // image, then a generic workplace photo.
    function getDefaultAdImage(ad) {
      const bt = businessTypeOf(ad);
      if (bt && DEFAULT_BUSINESS_TYPE_IMAGES[bt]) return DEFAULT_BUSINESS_TYPE_IMAGES[bt];
@@ -533,16 +314,11 @@
      return DEFAULT_FALLBACK_AD_IMAGE;
    }
    
-   // The single source of truth for "what photos should this ad show".
-   // Real uploaded photos always win; only falls back to a placeholder
-   // when the business skipped the photo upload step entirely.
    function getAdDisplayImages(ad) {
      if (ad.images && ad.images.length > 0) return ad.images;
      return [getDefaultAdImage(ad)];
    }
    
-   // Generic — works for any object list with locationLat/locationLng fields
-   // (used for both job advertisements AND worker profiles).
    function withDistances(items, userCoords) {
      return items.map((a) => {
        let distanceKm = null;
@@ -553,7 +329,6 @@
      });
    }
    
-   // Builds a wa.me deep link. Assumes Indian 10-digit mobile numbers by default.
    function buildWhatsAppLink(phone, message) {
      if (!phone) return null;
      let digits = String(phone).replace(/\D/g, '');
@@ -563,10 +338,6 @@
      return `https://wa.me/${digits}?text=${text}`;
    }
    
-   // Opens Google Maps directions to the given lat/lng. Tries to use the
-   // visitor's current position as the origin (silently falls back to a
-   // destination-only link if permission is denied or unavailable) —
-   // shared by the advertisement details page and the worker profile page.
    function openDirectionsToCoords(lat, lng, onDone) {
      if (lat == null || lng == null) { onDone && onDone(false); return; }
      const go = (originStr) => {
@@ -591,16 +362,11 @@
    // ------------------------------------------------------------
    // ROLE / PERMISSION HELPERS
    // ------------------------------------------------------------
-   // Posting worker requirements is a business-side action. A pure
-   // 'worker' account can't post; 'business' and 'both' can; admins can
-   // always do everything a normal ('both') account can, in addition to
-   // moderation.
    function canPostAds(user) {
      if (!user) return false;
      if (user.role === 'admin') return true;
      return user.userType === 'business' || user.userType === 'both';
    }
-   
    
    const EMPTY_FILTERS = {
      search: '', category: '', businessType: '', radius: 'all',
@@ -619,10 +385,6 @@
          `${a.jobTitle} ${a.businessName} ${a.description} ${a.skills} ${categoryOf(a)}`.toLowerCase().includes(q));
      }
      if (filters.category) list = list.filter((a) => categoryOf(a) === filters.category);
-     // Filter by the RESOLVED business type (businessTypeOf), not the
-     // raw businessType field, so choosing a custom business type in
-     // the filter (e.g. "Farm") correctly matches every ad whose
-     // businessType is 'Other' with that same customBusinessType.
      if (filters.businessType) list = list.filter((a) => businessTypeOf(a) === filters.businessType);
      if (filters.minSalary) list = list.filter((a) => parseSalaryNumber(a.salary) >= Number(filters.minSalary));
      if (filters.experience) list = list.filter((a) => (a.experience || '').toLowerCase().includes(filters.experience.toLowerCase()));
@@ -644,9 +406,6 @@
      return list;
    }
    
-   // Worker-profile equivalent of filterAndSortAds — mirrors the same
-   // radius/sort behaviour so "Workers near you" actually works once a
-   // worker has saved a location on their profile.
    const WORKER_EMPTY_FILTERS = {
      search: '', category: '', availableOnly: false, radius: 'all', sortBy: ''
    };
@@ -682,26 +441,7 @@
    }
    
    // ------------------------------------------------------------
-   // ROUTER — plain History API based path routing (no library, no
-   // build step). Translates between an in-app {page, params} route
-   // and a real, shareable URL path, so a deployment at e.g.
-   // https://rojgararea.online/ behaves like:
-   //   /                 -> home
-   //   /browse           -> browse (Browse Jobs listing)
-   //   /browse/:adId     -> details (Advertisement details)
-   //   /workers          -> workers (Find Workers listing)
-   //   /workers/:userId  -> worker-details (Worker profile)
-   //   /post             -> post (Post a requirement)
-   //   /edit/:adId       -> edit (Edit a requirement)
-   //   /dashboard        -> dashboard (My Dashboard)
-   //   /admin            -> admin (Admin Dashboard)
-   //   /login            -> login
-   //   /register         -> register
-   // Anything else falls back to home. Query-string filters (e.g. the
-   // ones passed from the homepage's category cards) are kept in
-   // in-memory route.params only — they aren't encoded into the URL —
-   // so a browser refresh or a shared link resets filters but always
-   // lands on the right page/record.
+   // ROUTER — History API path routing (no library)
    // ------------------------------------------------------------
    function pathForRoute(page, params) {
      params = params || {};
@@ -754,14 +494,160 @@
    }
    
    // ------------------------------------------------------------
+   // SEO — per-page title / description / canonical / robots / JSON-LD
+   // ------------------------------------------------------------
+   // index: true  -> Google may index the page
+   // index: false -> <meta name="robots" content="noindex, follow">
+   // To let Google index the dashboard anyway, set dashboard.index = true
+   // (not recommended: logged-out visitors only see a login form there).
+   const SEO_PAGES = {
+     home: {
+       index: true,
+       title: 'Rojgar AREA — Find Local Jobs Near You | Free Job Portal for Workers & Employers',
+       description: 'Find local jobs near you posted directly by factories, shops, restaurants and workshops. Free job portal for workers and employers in Punjab and across India — no middlemen.'
+     },
+     browse: {
+       index: true,
+       title: 'Browse Local Jobs Near You — Driver, Helper, Electrician & More | Rojgar AREA',
+       description: 'Browse the latest local job requirements near you: factory, shop, driver, helper, security guard, cook, tailor and more. Filter by distance, salary and category. Contact employers directly.'
+     },
+     workers: {
+       index: true,
+       title: 'Find Workers Near You — Electricians, Drivers, Plumbers & More | Rojgar AREA',
+       description: 'Hire skilled and unskilled workers near you. Browse worker profiles by category, experience and distance, and contact them directly by call or WhatsApp.'
+     },
+     post: {
+       index: true,
+       title: 'Post a Worker Requirement Free — Hire Local Staff | Rojgar AREA',
+       description: 'Employers: post your worker requirement for free in about 2 minutes and get calls and WhatsApp messages from local job seekers. No agents, no commission.'
+     },
+     login: {
+       index: true,
+       title: 'Log in — Rojgar AREA',
+       description: 'Log in to Rojgar AREA to view job details, contact employers, save jobs and manage your profile.'
+     },
+     register: {
+       index: true,
+       title: 'Create a Free Account — Job Seekers & Employers | Rojgar AREA',
+       description: 'Sign up free on Rojgar AREA as a job seeker or employer. Build your worker profile, apply to local jobs and post requirements directly.'
+     },
+     privacy: {
+       index: true,
+       title: 'Privacy Policy — Rojgar AREA',
+       description: 'How Rojgar AREA collects, uses and protects your information.'
+     },
+     terms: {
+       index: true,
+       title: 'Terms of Service — Rojgar AREA',
+       description: 'The terms that apply when you use Rojgar AREA to post or find jobs and workers.'
+     },
+     cookies: {
+       index: true,
+       title: 'Cookie Policy — Rojgar AREA',
+       description: 'How Rojgar AREA uses local browser storage and cookies.'
+     },
+     'contact-developer': {
+       index: true,
+       title: 'About Us & Contact — Rojgar AREA by Shree Shyam IT Solutions',
+       description: 'Rojgar AREA is built and maintained by Shree Shyam IT Solutions. Contact the team by email or visit our website.'
+     },
+     // Private / account pages — not useful in search results.
+     dashboard: { index: false, title: 'My Dashboard — Rojgar AREA', description: 'Manage your ads, saved jobs and profile.' },
+     admin: { index: false, title: 'Admin — Rojgar AREA', description: 'Admin dashboard.' },
+     edit: { index: false, title: 'Edit Requirement — Rojgar AREA', description: 'Edit your worker requirement.' },
+     // Details pages are login-gated (see MainRouter), so by default they are
+     // noindex. AdDetailsPage switches them to index once a real, active ad
+     // has loaded (which only happens for logged-in viewers today).
+     details: { index: false, title: 'Job Details — Rojgar AREA', description: 'Job details on Rojgar AREA.' },
+     'worker-details': { index: false, title: 'Worker Profile — Rojgar AREA', description: 'Worker profile on Rojgar AREA.' }
+   };
+   
+   function setMetaTag(attr, key, content) {
+     if (typeof document === 'undefined') return;
+     let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+     if (!el) {
+       el = document.createElement('meta');
+       el.setAttribute(attr, key);
+       document.head.appendChild(el);
+     }
+     el.setAttribute('content', content);
+   }
+   
+   function setCanonicalLink(url) {
+     if (typeof document === 'undefined') return;
+     let el = document.head.querySelector('link[rel="canonical"]');
+     if (!el) {
+       el = document.createElement('link');
+       el.setAttribute('rel', 'canonical');
+       document.head.appendChild(el);
+     }
+     el.setAttribute('href', url);
+   }
+   
+   function applySeo({ title, description, path, noindex, image }) {
+     if (typeof document === 'undefined') return;
+     const url = SITE_URL + (path === '/' ? '/' : path);
+     const img = image || SITE_LOGO;
+     document.title = title;
+     setMetaTag('name', 'description', description);
+     setMetaTag('name', 'robots', noindex ? 'noindex, follow' : 'index, follow');
+     setCanonicalLink(url);
+     setMetaTag('property', 'og:type', 'website');
+     setMetaTag('property', 'og:site_name', SITE_NAME);
+     setMetaTag('property', 'og:title', title);
+     setMetaTag('property', 'og:description', description);
+     setMetaTag('property', 'og:url', url);
+     setMetaTag('property', 'og:image', img);
+     setMetaTag('name', 'twitter:card', 'summary_large_image');
+     setMetaTag('name', 'twitter:title', title);
+     setMetaTag('name', 'twitter:description', description);
+     setMetaTag('name', 'twitter:image', img);
+   }
+   
+   function setJsonLd(id, data) {
+     if (typeof document === 'undefined') return;
+     let el = document.getElementById(id);
+     if (!el) {
+       el = document.createElement('script');
+       el.type = 'application/ld+json';
+       el.id = id;
+       document.head.appendChild(el);
+     }
+     el.textContent = JSON.stringify(data);
+   }
+   
+   function removeJsonLd(id) {
+     if (typeof document === 'undefined') return;
+     const el = document.getElementById(id);
+     if (el) el.remove();
+   }
+   
+   // ------------------------------------------------------------
    // CONTEXTS
    // ------------------------------------------------------------
    const AuthContext = createContext(null);
    const ToastContext = createContext(null);
    const GeoContext = createContext(null);
+   const NavContext = createContext(null);
    const useAuth = () => useContext(AuthContext);
    const useToast = () => useContext(ToastContext);
    const useGeo = () => useContext(GeoContext);
+   
+   // Real <a href> that Google can crawl, but which still navigates inside
+   // the app (no page reload) on a normal click. Ctrl/Cmd/middle-click
+   // still open in a new tab as usual.
+   function AppLink({ page, params, className, style, children, onClick, ...rest }) {
+     const nav = useContext(NavContext);
+     const href = pathForRoute(page, params);
+     const handle = (e) => {
+       if (onClick) onClick(e);
+       if (e.defaultPrevented) return;
+       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+       e.preventDefault();
+       if (nav) nav(page, params || {});
+     };
+     return <a href={href} className={className} style={style} onClick={handle} {...rest}>{children}</a>;
+   }
    
    function useGeolocation() {
      const [state, setState] = useState({ status: 'idle', coords: null, error: null });
@@ -938,9 +824,7 @@
    }
    
    // ------------------------------------------------------------
-   // FILTER / MENU DRAWER — reusable hamburger slide-in panel.
-   // Used by Browse Jobs ("☰ Filters"), Find Workers ("☰ Filters"),
-   // and My Dashboard ("☰ Menu").
+   // FILTER / MENU DRAWER
    // ------------------------------------------------------------
    function FilterDrawer({ open, onClose, title, children, side = 'left' }) {
      useEffect(() => {
@@ -980,8 +864,6 @@
      );
    }
    
-   // Circular avatar used for worker profile photos. Falls back to a
-   // generic person icon when no photo has been uploaded.
    function PersonAvatar({ src, size = 64 }) {
      const baseStyle = {
        width: size, height: size, minWidth: size, borderRadius: '50%',
@@ -1121,7 +1003,7 @@
    }
    
    // ------------------------------------------------------------
-   // REVIEWS (shared between businesses and workers)
+   // REVIEWS
    // ------------------------------------------------------------
    function ReviewsList({ toUserId }) {
      const [reviews, setReviews] = useState(null);
@@ -1211,9 +1093,6 @@
      const [lang, setLang] = useState(() => {
        try { return localStorage.getItem('kb_lang') || 'en'; } catch (e) { return 'en'; }
      });
-     // Route state is seeded from the real URL on first load, so a
-     // direct visit / refresh / bookmark of e.g. /browse/<adId> opens
-     // straight to that page instead of always landing on Home.
      const [route, setRoute] = useState(() => {
        try { return routeFromPath(window.location.pathname); } catch (e) { return { page: 'home', params: {} }; }
      });
@@ -1222,15 +1101,46 @@
    
      useEffect(() => { geo.request(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
    
-     // Keep in-app route state in sync with the browser's Back/Forward
-     // buttons (popstate fires on those, but not on our own pushState
-     // calls from navigate() below).
      useEffect(() => {
        const onPopState = () => {
          setRoute(routeFromPath(window.location.pathname));
        };
        window.addEventListener('popstate', onPopState);
        return () => window.removeEventListener('popstate', onPopState);
+     }, []);
+   
+     // SEO: set title / description / canonical / robots for the current
+     // page every time the route changes. Details pages override this once
+     // their data has loaded (see AdDetailsPage).
+     useEffect(() => {
+       const cfg = SEO_PAGES[route.page] || SEO_PAGES.home;
+       applySeo({
+         title: cfg.title,
+         description: cfg.description,
+         path: pathForRoute(route.page, route.params),
+         noindex: !cfg.index
+       });
+     }, [route.page, route.params]);
+   
+     // Site-wide structured data (Organization + WebSite).
+     useEffect(() => {
+       setJsonLd('ld-site', {
+         '@context': 'https://schema.org',
+         '@graph': [
+           {
+             '@type': 'Organization',
+             name: SITE_NAME,
+             url: SITE_URL + '/',
+             logo: SITE_LOGO
+           },
+           {
+             '@type': 'WebSite',
+             name: SITE_NAME,
+             url: SITE_URL + '/',
+             inLanguage: ['en', 'hi', 'pa']
+           }
+         ]
+       });
      }, []);
    
      const navigate = (page, params = {}) => {
@@ -1277,12 +1187,14 @@
          <LanguageContext.Provider value={langValue}>
            <GeoContext.Provider value={geo}>
              <ToastContext.Provider value={showToast}>
-               <div className="app-shell">
-                 <Navbar route={route} navigate={navigate} />
-                 <MainRouter route={route} navigate={navigate} />
-                 <Footer navigate={navigate} />
-                 <Toast toast={toast} />
-               </div>
+               <NavContext.Provider value={navigate}>
+                 <div className="app-shell">
+                   <Navbar route={route} navigate={navigate} />
+                   <MainRouter route={route} navigate={navigate} />
+                   <Footer navigate={navigate} />
+                   <Toast toast={toast} />
+                 </div>
+               </NavContext.Provider>
              </ToastContext.Provider>
            </GeoContext.Provider>
          </LanguageContext.Provider>
@@ -1290,8 +1202,6 @@
      );
    }
    
-   // Shown when a logged-in worker-only account tries to reach a
-   // business-only route (post/edit) directly.
    function PostNotAllowedPage({ navigate }) {
      return (
        <div className="container" style={{ maxWidth: 640, marginTop: 40 }}>
@@ -1316,12 +1226,6 @@
        case 'home': return <HomePage navigate={navigate} />;
        case 'browse': return <AdvertisementsPage navigate={navigate} initialFilters={route.params.filters} />;
        case 'details':
-         // NEW (v11): viewing the FULL details of an advertisement — the
-         // page that reveals the business's phone/WhatsApp "Apply" links,
-         // exact photos, map pin, etc. — now requires being logged in.
-         // Logged-out visitors can still browse/search cards on Browse
-         // Jobs; clicking a card sends them to log in / sign up first,
-         // then straight back to this exact listing.
          if (!user) {
            return (
              <LoginPage
@@ -1337,7 +1241,21 @@
          }
          return <AdDetailsPage adId={route.params.adId} navigate={navigate} />;
        case 'post':
-         if (!user) return <LoginPage navigate={navigate} initialMode="login" redirectTo="post" />;
+         // Logged-out visitors (and Googlebot) get a descriptive "post free"
+         // message instead of a bare login form.
+         if (!user) {
+           return (
+             <LoginPage
+               navigate={navigate}
+               initialMode="login"
+               redirectTo={{
+                 page: 'post',
+                 params: {},
+                 message: 'Post your worker requirement free in about 2 minutes. Log in or sign up as a Business / Employer and local job seekers will contact you directly by call or WhatsApp.'
+               }}
+             />
+           );
+         }
          if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
          return <AdFormPage navigate={navigate} mode="create" />;
        case 'edit':
@@ -1348,11 +1266,6 @@
        case 'admin': return (user && user.role === 'admin') ? <AdminDashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} initialMode="login" redirectTo="admin" />;
        case 'workers': return <WorkersBrowsePage navigate={navigate} />;
        case 'worker-details':
-         // NEW (v11): viewing a worker's FULL profile — the page that
-         // reveals their phone/WhatsApp/resume/exact location — now
-         // requires being logged in. "Find Workers" listing cards remain
-         // publicly browsable; tapping a card sends a logged-out visitor
-         // to log in / sign up first, then straight back to this profile.
          if (!user) {
            return (
              <LoginPage
@@ -1378,7 +1291,7 @@
    }
    
    // ------------------------------------------------------------
-   // FOOTER MODALS — Privacy / Terms / Cookies / Contact Developer
+   // LEGAL / CONTACT PAGES
    // ------------------------------------------------------------
    const LEGAL_CONTENT = {
      privacy: {
@@ -1410,143 +1323,140 @@
    };
    
    function LegalPage({ contentKey, navigate }) {
-    const content = LEGAL_CONTENT[contentKey];
-    if (!content) return null;
-  
-    const otherLinks = [
-      { key: 'privacy', label: 'Privacy Policy' },
-      { key: 'terms', label: 'Terms of Service' },
-      { key: 'cookies', label: 'Cookie Policy' },
-      { key: 'contact-developer', label: 'Contact Developer' },
-    ].filter((l) => l.key !== contentKey);
-  
-    return (
-      <div className="container" style={{ maxWidth: 800, marginTop: 30, marginBottom: 40 }}>
-        <div className="card">
-          <h1 style={{ marginBottom: 16 }}>{content.title}</h1>
-          {content.body.map((p, i) => (
-            <p key={i} style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 12 }}>{p}</p>
-          ))}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 24 }}>
-            {otherLinks.map((l) => (
-              <button key={l.key} className="btn btn-outline btn-sm" onClick={() => navigate(l.key)}>
-                {l.label}
-              </button>
-            ))}
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('home')}>← Back to Home</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+     const content = LEGAL_CONTENT[contentKey];
+     if (!content) return null;
    
-function ContactDeveloperPage({ navigate }) {
-  return (
-    <div className="container" style={{ maxWidth: 560, marginTop: 30, marginBottom: 40 }}>
-      <div className="card" style={{ textAlign: 'center' }}>
-        <h1 style={{ color: '#1B1E19', marginBottom: 18 }}>Contact Developer</h1>
-        <img
-          src="https://i.postimg.cc/cH2C6rgk/611276591-17933684004156896-6444722502286434287-n-(1).jpg"
-          alt="Shree Shyam IT Solutions"
-          style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }}
-        />
-        <h3 style={{ marginBottom: 4, color: '#1B1E19' }}>Shree Shyam IT Solutions</h3>
-        <p style={{ color: '#726C59', fontSize: 14, marginBottom: 18 }}>
-          This platform was built and is maintained by Shree Shyam IT Solutions.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <a
-            href="mailto:itsolutionsshreeshyam@gmail.com"
-            className="btn btn-outline btn-block"
-            style={{ textDecoration: 'none', color: '#1B1E19' }}
-          >
-            ✉️ itsolutionsshreeshyam@gmail.com
-          </a>
-          <a
-            href="https://shree-shyam-it-solutions.vercel.app/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary btn-block"
-            style={{ textDecoration: 'none' }}
-          >
-            🌐 Visit website
-          </a>
-          <button className="btn btn-outline btn-block" onClick={() => navigate('home')}>← Back to Home</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+     const otherLinks = [
+       { key: 'privacy', label: 'Privacy Policy' },
+       { key: 'terms', label: 'Terms of Service' },
+       { key: 'cookies', label: 'Cookie Policy' },
+       { key: 'contact-developer', label: 'Contact Developer' },
+     ].filter((l) => l.key !== contentKey);
    
-function Footer({ navigate }) {
-  const t = useT();
-  const handleNav = (page, params) => (e) => {
-    e.preventDefault();
-    navigate(page, params || {});
-  };
-
-  return (
-    <div className="footer">
-      <div className="container">
-        <div className="footer-grid">
-          <div className="footer-col">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-              <img
-                src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
-                alt="Rojgar AREA Logo"
-                style={{ height: '40px', width: 'auto' }}
-              />
-              <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
-            </div>
-            <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
-            <a
-              href={CONFIG.APP_DOWNLOAD_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary btn-sm footer-download-btn"
-              style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}
-            >
-              {t('downloadApp')}
-            </a>
-          </div>
-          <div className="footer-col">
-            <h4>Quick Links</h4>
-            <button className="footer-link" onClick={handleNav('browse')}>{t('browseJobs')}</button>
-            <button className="footer-link" onClick={handleNav('post')}>{t('postRequirement')}</button>
-            <button className="footer-link" onClick={handleNav('workers')}>{t('findWorkers')}</button>
-            <a
-              href={CONFIG.APP_DOWNLOAD_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="footer-link"
-              style={{ textDecoration: 'none', display: 'block' }}
-            >
-              {t('downloadApp')}
-            </a>
-            <button className="footer-link" onClick={handleNav('contact-developer')}>About Us</button>
-          </div>
-          <div className="footer-col">
-            <h4>Popular Searches</h4>
-            <button className="footer-link" onClick={handleNav('browse')}>Jobs Near Me</button>
-            <button className="footer-link" onClick={handleNav('browse')}>Hiring Today</button>
-            <button className="footer-link" onClick={handleNav('browse')}>Part Time Jobs</button>
-            <button className="footer-link" onClick={handleNav('browse')}>Fresher Jobs</button>
-          </div>
-          <div className="footer-col">
-            <h4>Legal</h4>
-            <button className="footer-link" onClick={handleNav('privacy')}>Privacy Policy</button>
-            <button className="footer-link" onClick={handleNav('terms')}>Terms of Service</button>
-            <button className="footer-link" onClick={handleNav('cookies')}>Cookie Policy</button>
-            <button className="footer-link" onClick={handleNav('contact-developer')}>Contact Developer</button>
-          </div>
-        </div>
-        <div className="footer-bottom">
-          <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+     return (
+       <div className="container" style={{ maxWidth: 800, marginTop: 30, marginBottom: 40 }}>
+         <div className="card">
+           <h1 style={{ marginBottom: 16 }}>{content.title}</h1>
+           {content.body.map((p, i) => (
+             <p key={i} style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 12 }}>{p}</p>
+           ))}
+           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 24 }}>
+             {otherLinks.map((l) => (
+               <AppLink key={l.key} page={l.key} className="btn btn-outline btn-sm" style={{ textDecoration: 'none' }}>
+                 {l.label}
+               </AppLink>
+             ))}
+             <AppLink page="home" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }}>← Back to Home</AppLink>
+           </div>
+         </div>
+       </div>
+     );
+   }
+   
+   function ContactDeveloperPage({ navigate }) {
+     return (
+       <div className="container" style={{ maxWidth: 560, marginTop: 30, marginBottom: 40 }}>
+         <div className="card" style={{ textAlign: 'center' }}>
+           <h1 style={{ color: '#1B1E19', marginBottom: 18 }}>Contact Developer</h1>
+           <img
+             src="https://i.postimg.cc/cH2C6rgk/611276591-17933684004156896-6444722502286434287-n-(1).jpg"
+             alt="Shree Shyam IT Solutions"
+             style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }}
+           />
+           <h3 style={{ marginBottom: 4, color: '#1B1E19' }}>Shree Shyam IT Solutions</h3>
+           <p style={{ color: '#726C59', fontSize: 14, marginBottom: 18 }}>
+             This platform was built and is maintained by Shree Shyam IT Solutions.
+           </p>
+           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+             <a
+               href="mailto:itsolutionsshreeshyam@gmail.com"
+               className="btn btn-outline btn-block"
+               style={{ textDecoration: 'none', color: '#1B1E19' }}
+             >
+               ✉️ itsolutionsshreeshyam@gmail.com
+             </a>
+             <a
+               href="https://shree-shyam-it-solutions.vercel.app/"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="btn btn-primary btn-block"
+               style={{ textDecoration: 'none' }}
+             >
+               🌐 Visit website
+             </a>
+             <AppLink page="home" className="btn btn-outline btn-block" style={{ textDecoration: 'none' }}>← Back to Home</AppLink>
+           </div>
+         </div>
+       </div>
+     );
+   }
+   
+   function Footer({ navigate }) {
+     const t = useT();
+     const linkStyle = { textDecoration: 'none', display: 'block' };
+   
+     return (
+       <div className="footer">
+         <div className="container">
+           <div className="footer-grid">
+             <div className="footer-col">
+               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                 <img
+                   src={SITE_LOGO}
+                   alt="Rojgar AREA Logo"
+                   style={{ height: '40px', width: 'auto' }}
+                 />
+                 <h4 style={{ marginBottom: 0 }}>Rojgar AREA</h4>
+               </div>
+               <p>Connecting local businesses with workers across India. Find jobs near you or post requirements instantly.</p>
+               <a
+                 href={CONFIG.APP_DOWNLOAD_URL}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="btn btn-primary btn-sm footer-download-btn"
+                 style={{ textDecoration: 'none', marginTop: 14, display: 'inline-flex' }}
+               >
+                 {t('downloadApp')}
+               </a>
+             </div>
+             <div className="footer-col">
+               <h4>Quick Links</h4>
+               <AppLink page="browse" className="footer-link" style={linkStyle}>{t('browseJobs')}</AppLink>
+               <AppLink page="post" className="footer-link" style={linkStyle}>{t('postRequirement')}</AppLink>
+               <AppLink page="workers" className="footer-link" style={linkStyle}>{t('findWorkers')}</AppLink>
+               <a
+                 href={CONFIG.APP_DOWNLOAD_URL}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="footer-link"
+                 style={linkStyle}
+               >
+                 {t('downloadApp')}
+               </a>
+               <AppLink page="contact-developer" className="footer-link" style={linkStyle}>About Us</AppLink>
+             </div>
+             <div className="footer-col">
+               <h4>Popular Searches</h4>
+               <AppLink page="browse" params={{ filters: { ...EMPTY_FILTERS } }} className="footer-link" style={linkStyle}>Jobs Near Me</AppLink>
+               <AppLink page="browse" params={{ filters: { ...EMPTY_FILTERS, urgentOnly: true } }} className="footer-link" style={linkStyle}>Hiring Today</AppLink>
+               <AppLink page="browse" params={{ filters: { ...EMPTY_FILTERS, search: 'part time' } }} className="footer-link" style={linkStyle}>Part Time Jobs</AppLink>
+               <AppLink page="browse" params={{ filters: { ...EMPTY_FILTERS, experience: 'fresher' } }} className="footer-link" style={linkStyle}>Fresher Jobs</AppLink>
+             </div>
+             <div className="footer-col">
+               <h4>Legal</h4>
+               <AppLink page="privacy" className="footer-link" style={linkStyle}>Privacy Policy</AppLink>
+               <AppLink page="terms" className="footer-link" style={linkStyle}>Terms of Service</AppLink>
+               <AppLink page="cookies" className="footer-link" style={linkStyle}>Cookie Policy</AppLink>
+               <AppLink page="contact-developer" className="footer-link" style={linkStyle}>Contact Developer</AppLink>
+             </div>
+           </div>
+           <div className="footer-bottom">
+             <span>© 2026 Rojgar AREA — Made in India 🇮🇳</span>
+           </div>
+         </div>
+       </div>
+     );
+   }
    
    // ==============================================================
    // NAVBAR
@@ -1558,6 +1468,7 @@ function Footer({ navigate }) {
          className="lang-switcher"
          value={lang}
          onChange={(e) => setLang(e.target.value)}
+         aria-label="Language"
          style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc', background: '#fff', fontSize: 13 }}
        >
          {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
@@ -1566,73 +1477,74 @@ function Footer({ navigate }) {
    }
    
    function Navbar({ route, navigate }) {
-    const { user, logout } = useAuth();
-    const t = useT();
-    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [scrolled, setScrolled] = useState(false);
-  
-    useEffect(() => {
-      const handleScroll = () => {
-        setScrolled(window.scrollY > 20);
-      };
-      window.addEventListener('scroll', handleScroll);
-      return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-  
-    const showPostLink = !user || canPostAds(user);
-    const closeMenu = () => setMobileMenuOpen(false);
-  
-    return (
-      <div className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
-        <div className="container navbar-inner">
-          <div className="brand" onClick={() => { navigate('home'); closeMenu(); }}>
-            <img
-              src="https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
-              alt="Rojgar AREA Logo"
-              className="brand-logo"
-              style={{ height: '40px', width: 'auto' }}
-            />
-            <div className="brand-text">Rojgar<span>AREA</span></div>
-          </div>
-  
-          <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
-            {mobileMenuOpen ? '✕' : '☰'}
-          </button>
-  
-          <div className={`nav-menu-wrapper ${mobileMenuOpen ? 'open' : ''}`}>
-            <div className="nav-links">
-              <button className={`nav-link ${route.page === 'home' ? 'active' : ''}`} onClick={() => { navigate('home'); closeMenu(); }}>{t('home')}</button>
-              <button className={`nav-link ${route.page === 'browse' ? 'active' : ''}`} onClick={() => { navigate('browse'); closeMenu(); }}>{t('browseJobs')}</button>
-              <button className={`nav-link ${route.page === 'workers' ? 'active' : ''}`} onClick={() => { navigate('workers'); closeMenu(); }}>{t('findWorkers')}</button>
-              {showPostLink && (
-                <button className={`nav-link ${route.page === 'post' ? 'active' : ''}`} onClick={() => { navigate('post'); closeMenu(); }}>{t('postRequirement')}</button>
-              )}
-              {user && <button className={`nav-link ${route.page === 'dashboard' ? 'active' : ''}`} onClick={() => { navigate('dashboard'); closeMenu(); }}>{t('myDashboard')}</button>}
-              {user && user.role === 'admin' && <button className={`nav-link ${route.page === 'admin' ? 'active' : ''}`} onClick={() => { navigate('admin'); closeMenu(); }}>{t('admin')}</button>}
-            </div>
-  
-            <div className="nav-user">
-              <LanguageSwitcher />
-              {user ? (
-                <>
-                  <div className="nav-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
-                  <button className="btn-ghost-light" onClick={logout}>{t('logout')}</button>
-                </>
-              ) : (
-                <>
-                  <button className="btn-ghost-light" onClick={() => { navigate('login'); closeMenu(); }}>{t('login')}</button>
-                  <button className="btn btn-primary btn-sm" onClick={() => { navigate('register'); closeMenu(); }}>{t('signup')}</button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+     const { user, logout } = useAuth();
+     const t = useT();
+     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+     const [scrolled, setScrolled] = useState(false);
+   
+     useEffect(() => {
+       const handleScroll = () => {
+         setScrolled(window.scrollY > 20);
+       };
+       window.addEventListener('scroll', handleScroll);
+       return () => window.removeEventListener('scroll', handleScroll);
+     }, []);
+   
+     const showPostLink = !user || canPostAds(user);
+     const closeMenu = () => setMobileMenuOpen(false);
+     const navStyle = { textDecoration: 'none', display: 'inline-block' };
+   
+     return (
+       <div className={`navbar ${scrolled ? 'navbar-scrolled' : ''}`}>
+         <div className="container navbar-inner">
+           <AppLink page="home" className="brand" style={{ textDecoration: 'none', color: 'inherit' }} onClick={closeMenu}>
+             <img
+               src={SITE_LOGO}
+               alt="Rojgar AREA Logo"
+               className="brand-logo"
+               style={{ height: '40px', width: 'auto' }}
+             />
+             <div className="brand-text">Rojgar<span>AREA</span></div>
+           </AppLink>
+   
+           <button className="mobile-menu-toggle" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+             {mobileMenuOpen ? '✕' : '☰'}
+           </button>
+   
+           <div className={`nav-menu-wrapper ${mobileMenuOpen ? 'open' : ''}`}>
+             <nav className="nav-links" aria-label="Main">
+               <AppLink page="home" className={`nav-link ${route.page === 'home' ? 'active' : ''}`} style={navStyle} onClick={closeMenu}>{t('home')}</AppLink>
+               <AppLink page="browse" className={`nav-link ${route.page === 'browse' ? 'active' : ''}`} style={navStyle} onClick={closeMenu}>{t('browseJobs')}</AppLink>
+               <AppLink page="workers" className={`nav-link ${route.page === 'workers' ? 'active' : ''}`} style={navStyle} onClick={closeMenu}>{t('findWorkers')}</AppLink>
+               {showPostLink && (
+                 <AppLink page="post" className={`nav-link ${route.page === 'post' ? 'active' : ''}`} style={navStyle} onClick={closeMenu}>{t('postRequirement')}</AppLink>
+               )}
+               {user && <AppLink page="dashboard" className={`nav-link ${route.page === 'dashboard' ? 'active' : ''}`} style={navStyle} onClick={closeMenu}>{t('myDashboard')}</AppLink>}
+               {user && user.role === 'admin' && <AppLink page="admin" className={`nav-link ${route.page === 'admin' ? 'active' : ''}`} style={navStyle} onClick={closeMenu}>{t('admin')}</AppLink>}
+             </nav>
+   
+             <div className="nav-user">
+               <LanguageSwitcher />
+               {user ? (
+                 <>
+                   <div className="nav-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
+                   <button className="btn-ghost-light" onClick={logout}>{t('logout')}</button>
+                 </>
+               ) : (
+                 <>
+                   <AppLink page="login" className="btn-ghost-light" style={{ textDecoration: 'none' }} onClick={closeMenu}>{t('login')}</AppLink>
+                   <AppLink page="register" className="btn btn-primary btn-sm" style={{ textDecoration: 'none' }} onClick={closeMenu}>{t('signup')}</AppLink>
+                 </>
+               )}
+             </div>
+           </div>
+         </div>
+       </div>
+     );
+   }
    
    // ==============================================================
-   // HOME PAGE — Enhanced with animations and images
+   // HOME PAGE
    // ==============================================================
    function HomePage({ navigate }) {
      const geo = useGeo();
@@ -1662,8 +1574,6 @@ function Footer({ navigate }) {
        }
      };
    
-     // Home shows only the first HOME_MAX_RESULTS (6) recent/nearby
-     // listings — "View all" on Browse Jobs shows the rest.
      const nearby = useMemo(() => {
        if (!allAds) return null;
        const filters = geo.status === 'granted'
@@ -1682,8 +1592,6 @@ function Footer({ navigate }) {
        [allAds]
      );
    
-     // Home shows only the first HOME_MAX_CATEGORIES (6) categories,
-     // laid out in a single row (categories-grid-line).
      const jobCategories = useMemo(() => {
        const counts = {};
        (allAds || []).forEach((ad) => {
@@ -1695,14 +1603,10 @@ function Footer({ navigate }) {
        return Object.entries(counts)
          .sort((a, b) => b[1] - a[1])
          .slice(0, HOME_MAX_CATEGORIES)
-         .map(([name, count]) => ({ 
-           icon: CATEGORY_ICONS[name] || '📋', 
-           name, 
+         .map(([name, count]) => ({
+           icon: CATEGORY_ICONS[name] || '📋',
+           name,
            count,
-           // NEW (v11): fall back to a generic default photo instead of
-           // `null` whenever a category (e.g. a brand-new custom one
-           // added via "Other") has no matching CATEGORY_IMAGES entry,
-           // so every category tile always shows a photo.
            image: CATEGORY_IMAGES[name] || DEFAULT_CATEGORY_IMAGE
          }));
      }, [allAds]);
@@ -1713,7 +1617,6 @@ function Footer({ navigate }) {
        { number: '03', title: 'Get Hired', description: 'Connect directly with businesses and start working.', icon: '🎉' },
      ];
    
-     // Hero images for the background slideshow
      const heroImages = [
        'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=1200&h=600&fit=crop',
        'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=600&fit=crop',
@@ -1721,15 +1624,17 @@ function Footer({ navigate }) {
      ];
    
      const [heroImageIndex, setHeroImageIndex] = useState(0);
-     const [placedCount] = useState(() => randomPlacedCount()); // new random number on every visit/refresh
+     const [placedCount] = useState(() => randomPlacedCount());
      const animatedPlaced = useCountUp(placedCount);
-
+   
      useEffect(() => {
-      const interval = setInterval(() => {
-        setHeroImageIndex((prev) => (prev + 1) % heroImages.length);
-      }, 6000);
-      return () => clearInterval(interval);
-    }, [heroImages.length]);
+       const interval = setInterval(() => {
+         setHeroImageIndex((prev) => (prev + 1) % heroImages.length);
+       }, 6000);
+       return () => clearInterval(interval);
+     }, [heroImages.length]);
+   
+     const linkBtnStyle = { textDecoration: 'none' };
    
      return (
        <div>
@@ -1737,8 +1642,8 @@ function Footer({ navigate }) {
          <div className="hero">
            <div className="hero-slideshow">
              {heroImages.map((img, i) => (
-               <div 
-                 key={i} 
+               <div
+                 key={i}
                  className={`hero-slide ${i === heroImageIndex ? 'active' : ''}`}
                  style={{ backgroundImage: `url(${img})` }}
                />
@@ -1746,17 +1651,17 @@ function Footer({ navigate }) {
              <div className="hero-overlay"></div>
            </div>
            <div className="hero-particles"></div>
-           
+   
            <div className="container">
-           <div className="hero-placed animate-slide-up">
-  <span className="hero-placed-num">{animatedPlaced.toLocaleString('en-IN')}+</span>
-  <span className="hero-placed-label">{t('placedLabel')}</span>
-</div>
-<br></br>
+             <div className="hero-placed animate-slide-up">
+               <span className="hero-placed-num">{animatedPlaced.toLocaleString('en-IN')}+</span>
+               <span className="hero-placed-label">{t('placedLabel')}</span>
+             </div>
+             <br></br>
              <div className="hero-badge animate-float">🇮🇳 India's First Local Job Platform</div>
              <h1 className="animate-slide-up">{t('heroTitle')}</h1>
              <p className="animate-slide-up-delay">{t('heroSubtitle')}</p>
-             
+   
              <form className="hero-search animate-slide-up-delay-2" onSubmit={runSearch}>
                <div className="hero-search-group">
                  <div className="hero-search-field">
@@ -1798,7 +1703,7 @@ function Footer({ navigate }) {
                  <strong className="counter-animate">{allAds ? activeCount : '—'}</strong> active requirements · <strong>{allAds?.length || 0}</strong> total listings
                </span>
              </div>
-             
+   
            </div>
          </div>
    
@@ -1807,24 +1712,23 @@ function Footer({ navigate }) {
            <div className="container" style={{ marginTop: 30 }}>
              <div className="section-head">
                <h2>{t('urgentHiring')}<span className="count-pill">{urgentAds.length}</span></h2>
-               <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, urgentOnly: true } })}>{t('viewAll')}</button>
+               <AppLink page="browse" params={{ filters: { ...EMPTY_FILTERS, urgentOnly: true } }} className="btn btn-outline btn-sm" style={linkBtnStyle}>{t('viewAll')}</AppLink>
              </div>
              <div className="grid">
                {urgentAds.map((ad, i) => (
                  <AnimatedCard key={ad.adId} delay={i * 50}>
-                   <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+                   <AdCard ad={ad} />
                  </AnimatedCard>
                ))}
              </div>
            </div>
          )}
    
-         {/* JOB CATEGORIES SECTION with images — 6 categories, single line */}
+         {/* JOB CATEGORIES SECTION — 6 categories, single line */}
          <div className="categories-section">
            <div className="container">
              <AnimatedSection className="section-head text-center">
                <h2>{t('popularCategories')}</h2>
-
                <p>Find jobs in your preferred category from verified local businesses</p>
              </AnimatedSection>
              {allAds === null && !error && (
@@ -1839,18 +1743,24 @@ function Footer({ navigate }) {
              {jobCategories.length > 0 && (
                <div className="categories-grid-line">
                  {jobCategories.map((cat, i) => (
-                   <AnimatedCard key={i} delay={i * 50} className="category-card" onClick={() => navigate('browse', { filters: { ...EMPTY_FILTERS, category: cat.name } })}>
-                     {cat.image && (
-                       <div className="category-card-image">
-                         <img src={cat.image} alt={cat.name} loading="lazy" />
-                         <div className="category-card-overlay"></div>
+                   <AnimatedCard key={i} delay={i * 50} className="category-card">
+                     <AppLink
+                       page="browse"
+                       params={{ filters: { ...EMPTY_FILTERS, category: cat.name } }}
+                       style={{ color: 'inherit', textDecoration: 'none', display: 'block' }}
+                     >
+                       {cat.image && (
+                         <div className="category-card-image">
+                           <img src={cat.image} alt={cat.name} loading="lazy" />
+                           <div className="category-card-overlay"></div>
+                         </div>
+                       )}
+                       <div className="category-card-content">
+                         <div className="category-icon">{cat.icon}</div>
+                         <h4>{cat.name}</h4>
+                         <span className="category-count">{cat.count} {cat.count === 1 ? 'job' : 'jobs'}</span>
                        </div>
-                     )}
-                     <div className="category-card-content">
-                       <div className="category-icon">{cat.icon}</div>
-                       <h4>{cat.name}</h4>
-                       <span className="category-count">{cat.count} {cat.count === 1 ? 'job' : 'jobs'}</span>
-                     </div>
+                     </AppLink>
                    </AnimatedCard>
                  ))}
                </div>
@@ -1872,9 +1782,7 @@ function Footer({ navigate }) {
                    <div className="pack-card-icon">💼</div>
                    <h3>Full Time Jobs</h3>
                    <p>Stable employment with fixed working hours and monthly salary.</p>
-                   <button className="btn btn-primary btn-sm" onClick={() => navigate('browse')}>
-                     View Jobs →
-                   </button>
+                   <AppLink page="browse" className="btn btn-primary btn-sm" style={linkBtnStyle}>View Jobs →</AppLink>
                  </div>
                </AnimatedCard>
    
@@ -1883,9 +1791,7 @@ function Footer({ navigate }) {
                    <div className="pack-card-icon">⏱️</div>
                    <h3>Part Time Jobs</h3>
                    <p>Flexible work opportunities for students and homemakers.</p>
-                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse',)}>
-                     View Jobs →
-                   </button>
+                   <AppLink page="browse" params={{ filters: { ...EMPTY_FILTERS, search: 'part time' } }} className="btn btn-outline btn-sm" style={linkBtnStyle}>View Jobs →</AppLink>
                  </div>
                </AnimatedCard>
    
@@ -1894,17 +1800,15 @@ function Footer({ navigate }) {
                    <div className="pack-card-icon">🧑‍💻</div>
                    <h3>Freelance & Contract</h3>
                    <p>Project-based work opportunities with flexible schedules.</p>
-                   <button className="btn btn-outline btn-sm" onClick={() => navigate('browse',)}>
-                     View Jobs →
-                   </button>
+                   <AppLink page="browse" className="btn btn-outline btn-sm" style={linkBtnStyle}>View Jobs →</AppLink>
                  </div>
                </AnimatedCard>
              </div>
            </div>
          </div>
-
-                  {/* LATEST JOBS SECTION — 6 listings, 3x2 grid */}
-                  <div className="container">
+   
+         {/* LATEST JOBS SECTION — 6 listings, 3x2 grid */}
+         <div className="container">
            <LocationBanner />
    
            <div className="section-head">
@@ -1912,9 +1816,14 @@ function Footer({ navigate }) {
                {geo.status === 'granted' ? `Jobs within ${HOME_DEFAULT_RADIUS} km of you` : 'Recently posted requirements'}
                {nearby && <span className="count-pill">{nearby.length}</span>}
              </h2>
-             <button className="btn btn-outline btn-sm" onClick={() => navigate('browse', geo.status === 'granted' ? { filters: { ...EMPTY_FILTERS, radius: HOME_DEFAULT_RADIUS } } : undefined)}>
+             <AppLink
+               page="browse"
+               params={geo.status === 'granted' ? { filters: { ...EMPTY_FILTERS, radius: HOME_DEFAULT_RADIUS } } : undefined}
+               className="btn btn-outline btn-sm"
+               style={linkBtnStyle}
+             >
                {t('viewAll')}
-             </button>
+             </AppLink>
            </div>
    
            {allAds === null && !error && <Spinner label="Loading advertisements..." />}
@@ -1926,7 +1835,7 @@ function Footer({ navigate }) {
              <div className="grid-home-recent">
                {nearby.map((ad, i) => (
                  <AnimatedCard key={ad.adId} delay={i * 50}>
-                   <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+                   <AdCard ad={ad} />
                  </AnimatedCard>
                ))}
              </div>
@@ -1954,21 +1863,48 @@ function Footer({ navigate }) {
            </div>
          </div>
    
+         {/* ABOUT — crawlable text with internal links (helps Google discover
+             and understand the other pages of the site) */}
+         <div className="container" style={{ marginTop: 40, marginBottom: 40 }}>
+           <div className="card">
+             <h2 style={{ marginBottom: 10 }}>Rojgar AREA — free local job portal for workers and employers</h2>
+             <p style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 10 }}>
+               Rojgar AREA connects job seekers directly with local businesses — factories, shops, restaurants,
+               workshops, salons, schools and homes — without agents or commission. Use{' '}
+               <AppLink page="browse">Browse Jobs</AppLink> to see worker requirements near you, sorted by distance and salary,
+               and contact the employer by call or WhatsApp.
+             </p>
+             <p style={{ fontSize: 15, lineHeight: 1.7, marginBottom: 10 }}>
+               Employers can <AppLink page="post">post a worker requirement for free</AppLink> in about two minutes, or use{' '}
+               <AppLink page="workers">Find Workers</AppLink> to hire electricians, drivers, plumbers, helpers, security guards,
+               cooks, tailors, tutors and more from their own area. New here?{' '}
+               <AppLink page="register">Create a free account</AppLink>.
+             </p>
+             <p style={{ fontSize: 13, color: 'var(--text-mute)' }}>
+               Available in English, हिंदी and ਪੰਜਾਬੀ.{' '}
+               <AppLink page="privacy">Privacy Policy</AppLink> · <AppLink page="terms">Terms of Service</AppLink> ·{' '}
+               <AppLink page="contact-developer">About Us</AppLink>
+             </p>
+           </div>
+         </div>
+   
        </div>
      );
    }
    
-   function AdCard({ ad, onClick }) {
+   // Advertisement card — now a real link to /browse/:adId so it is crawlable.
+   function AdCard({ ad }) {
      const hasImages = ad.images && ad.images.length > 0;
      const displayImages = getAdDisplayImages(ad);
      const isNew = new Date(ad.postedAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
      return (
-       <div className="ad-card" onClick={onClick}>
+       <AppLink
+         page="details"
+         params={{ adId: ad.adId }}
+         className="ad-card"
+         style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
+       >
          <div className="ad-card-img" style={{ backgroundImage: `url(${displayImages[0]})` }}>
-           {/* NEW (v10): if the business skipped photo upload, show a
-               small "Representative photo" tag instead of a blank box —
-               the image itself is a relevant default (see
-               getAdDisplayImages / DEFAULT_BUSINESS_TYPE_IMAGES). */}
            {!hasImages && <div className="ad-card-placeholder-tag">📷 Representative photo</div>}
            {hasImages && ad.images.length > 1 && <div className="ad-card-count">{ad.images.length} photos</div>}
            {ad.status !== 'active' && <div className="ad-card-badge"><StatusBadge status={ad.status} /></div>}
@@ -1980,9 +1916,6 @@ function Footer({ navigate }) {
              {ad.jobTitle}
              {ad.businessVerified && <VerifiedBadge small />}
            </div>
-           {/* Shows businessTypeOf(ad) so a custom business type
-               (businessType === 'Other') displays its own label instead of
-               the literal word "Other". */}
            <div className="ad-card-biz">{ad.businessName} · {businessTypeOf(ad)}</div>
            <div className="ad-card-meta">
              <span>📍 {ad.locationAddress || 'Location on request'}</span>
@@ -1994,13 +1927,12 @@ function Footer({ navigate }) {
              <span className="mono" style={{ fontSize: 12, color: 'var(--text-mute)' }}>{categoryOf(ad)}</span>
            </div>
          </div>
-       </div>
+       </AppLink>
      );
    }
    
    // ==============================================================
-   // FILTER PANEL — content rendered inside the "Filters" drawer
-   // on the Browse Jobs page.
+   // FILTER PANEL (Browse Jobs)
    // ==============================================================
    function FilterPanel({ filters, setFilters, categoryOptions, businessTypeOptions, geoStatus, onRequestLocation, resultCount }) {
      const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
@@ -2044,14 +1976,6 @@ function Footer({ navigate }) {
    
          <div className="field">
            <label>Business type</label>
-           {/*
-             Options are built FROM THE DATA (buildBusinessTypeOptions),
-             the same way "Worker category" already works — so any
-             custom business type someone has posted via the "Other"
-             field on Post a Requirement (as well as the new "Education"
-             and "Homekeeper" presets) shows up here automatically as a
-             real, selectable filter value.
-           */}
            <select value={filters.businessType} onChange={(e) => set('businessType', e.target.value)}>
              <option value="">All business types</option>
              {businessTypeOptions.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -2115,68 +2039,62 @@ function Footer({ navigate }) {
      }, [allAds, filters, geo.coords]);
    
      const categoryOptions = useMemo(() => buildCategoryOptions(allAds || []), [allAds]);
-     // Dynamic Business Type filter options, built the same way
-     // categoryOptions is above — automatically includes "Education" /
-     // "Homekeeper" plus any custom types businesses have posted.
      const businessTypeOptions = useMemo(() => buildBusinessTypeOptions(allAds || []), [allAds]);
    
      return (
-<div className="container">
-  <div className="section-head" style={{ marginTop: 30 }}>
-    <h2>All job requirements {results && <span className="count-pill">{results.length}</span>}</h2>
-    <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
-      ☰ Filters
-    </button>
-  </div>
-
-  <LocationBanner compact />
-
-  <div className="browse-layout">
-    {/* Desktop Filters - always visible on desktop */}
-    <div className="filter-sidebar-desktop">
-      <FilterPanel
-        filters={filters}
-        setFilters={setFilters}
-        categoryOptions={categoryOptions}
-        businessTypeOptions={businessTypeOptions}
-        geoStatus={geo.status}
-        onRequestLocation={geo.request}
-        resultCount={results ? results.length : undefined}
-      />
-    </div>
-
-    {/* Results */}
-    <div className="browse-results-full">
-      {allAds === null && !error && <Spinner label="Loading advertisements..." />}
-      {error && <ErrorState message={error} onRetry={load} />}
-      {results && results.length === 0 && (
-        <EmptyState icon="🗂️" title="No advertisements found" message="Try clearing some filters or widening your search radius." />
-      )}
-      {results && results.length > 0 && (
-        <div className="grid">
-          {results.map((ad, i) => (
-            <AnimatedCard key={ad.adId} delay={i % 10 * 50}>
-              <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
-            </AnimatedCard>
-          ))}
-        </div>
-      )}
-    </div>
-  </div>
-
-  {/* Mobile Filter Drawer */}
-  <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
-    <FilterPanel
-      filters={filters}
-      setFilters={setFilters}
-      categoryOptions={categoryOptions}
-      businessTypeOptions={businessTypeOptions}
-      geoStatus={geo.status}
-      onRequestLocation={geo.request}
-      resultCount={results ? results.length : undefined}
-    />
-  </FilterDrawer>
-</div>
+       <div className="container">
+         <div className="section-head" style={{ marginTop: 30 }}>
+           <h1 style={{ fontSize: 28, margin: 0 }}>All job requirements {results && <span className="count-pill">{results.length}</span>}</h1>
+           <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
+             ☰ Filters
+           </button>
+         </div>
+   
+         <LocationBanner compact />
+   
+         <div className="browse-layout">
+           <div className="filter-sidebar-desktop">
+             <FilterPanel
+               filters={filters}
+               setFilters={setFilters}
+               categoryOptions={categoryOptions}
+               businessTypeOptions={businessTypeOptions}
+               geoStatus={geo.status}
+               onRequestLocation={geo.request}
+               resultCount={results ? results.length : undefined}
+             />
+           </div>
+   
+           <div className="browse-results-full">
+             {allAds === null && !error && <Spinner label="Loading advertisements..." />}
+             {error && <ErrorState message={error} onRetry={load} />}
+             {results && results.length === 0 && (
+               <EmptyState icon="🗂️" title="No advertisements found" message="Try clearing some filters or widening your search radius." />
+             )}
+             {results && results.length > 0 && (
+               <div className="grid">
+                 {results.map((ad, i) => (
+                   <AnimatedCard key={ad.adId} delay={i % 10 * 50}>
+                     <AdCard ad={ad} />
+                   </AnimatedCard>
+                 ))}
+               </div>
+             )}
+           </div>
+         </div>
+   
+         <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+           <FilterPanel
+             filters={filters}
+             setFilters={setFilters}
+             categoryOptions={categoryOptions}
+             businessTypeOptions={businessTypeOptions}
+             geoStatus={geo.status}
+             onRequestLocation={geo.request}
+             resultCount={results ? results.length : undefined}
+           />
+         </FilterDrawer>
+       </div>
      );
    }
    
@@ -2199,9 +2117,6 @@ function Footer({ navigate }) {
      const [, setApplied] = useState(false);
      const [directionsLoading, setDirectionsLoading] = useState(false);
    
-     // NEW (v11): this page is only ever reached while logged in (see
-     // MainRouter's 'details' case), so `user` is always present here.
-     // getAdById now also requires a viewerId server-side — see Code.gs.
      const load = useCallback(() => {
        setAd(null); setError(null);
        apiCall('getAdById', { adId, viewerId: user ? user.userId : undefined })
@@ -2210,6 +2125,51 @@ function Footer({ navigate }) {
      }, [adId, user]);
    
      useEffect(() => { load(); }, [load]);
+   
+     // SEO for the individual job page: unique title/description + JobPosting
+     // structured data (eligible for Google for Jobs) once the ad has loaded.
+     useEffect(() => {
+       if (!ad || ad.status !== 'active') return;
+       const cat = categoryOf(ad);
+       const where = ad.locationAddress ? ` in ${ad.locationAddress}` : '';
+       const title = `${ad.jobTitle} at ${ad.businessName}${where} — ${cat} Job | Rojgar AREA`;
+       const description = `${ad.jobTitle} required at ${ad.businessName}${where}. ${ad.numWorkers} ${ad.numWorkers === 1 ? 'worker' : 'workers'} needed${ad.salary ? `, salary ₹${ad.salary}` : ''}. Apply directly by call or WhatsApp on Rojgar AREA.`;
+       applySeo({
+         title,
+         description: description.slice(0, 300),
+         path: pathForRoute('details', { adId: ad.adId }),
+         noindex: false,
+         image: getAdDisplayImages(ad)[0]
+       });
+       try {
+         const posted = new Date(ad.postedAt);
+         const valid = new Date(posted.getTime() + 60 * 24 * 60 * 60 * 1000);
+         const salaryNum = parseSalaryNumber(ad.salary);
+         const ld = {
+           '@context': 'https://schema.org',
+           '@type': 'JobPosting',
+           title: ad.jobTitle,
+           description: ad.description || `${ad.jobTitle} required at ${ad.businessName}.`,
+           datePosted: posted.toISOString(),
+           validThrough: valid.toISOString(),
+           employmentType: 'FULL_TIME',
+           hiringOrganization: { '@type': 'Organization', name: ad.businessName },
+           jobLocation: {
+             '@type': 'Place',
+             address: { '@type': 'PostalAddress', streetAddress: ad.locationAddress || '', addressCountry: 'IN' }
+           }
+         };
+         if (salaryNum > 0) {
+           ld.baseSalary = {
+             '@type': 'MonetaryAmount',
+             currency: 'INR',
+             value: { '@type': 'QuantitativeValue', value: salaryNum, unitText: 'MONTH' }
+           };
+         }
+         setJsonLd('ld-job', ld);
+       } catch (e) { /* invalid date — skip structured data */ }
+       return () => removeJsonLd('ld-job');
+     }, [ad]);
    
      useEffect(() => {
        if (user && ad) {
@@ -2247,8 +2207,6 @@ function Footer({ navigate }) {
      };
    
      const isOwner = user && ad.postedBy === user.userId;
-     // NEW (v10): fall back to a relevant default photo when the
-     // business didn't upload any workplace photos.
      const hasRealImages = ad.images && ad.images.length > 0;
      const images = getAdDisplayImages(ad);
      const whatsappLink = buildWhatsAppLink(ad.contactPhone, `Hi, I'm interested in the "${ad.jobTitle}" position at ${ad.businessName} that I saw on Rojgar AREA.`);
@@ -2296,8 +2254,6 @@ function Footer({ navigate }) {
                  ))}
                </div>
              )}
-             {/* NEW (v10): tells the visitor this is a stand-in photo, not
-                 the actual workplace, whenever no real photos were uploaded. */}
              {!hasRealImages && (
                <p style={{ fontSize: 12, color: 'var(--text-mute)', marginTop: 8 }}>
                  📷 Representative photo — this business hasn't uploaded workplace photos yet.
@@ -2319,8 +2275,8 @@ function Footer({ navigate }) {
                  <div className="map-wrap">
                    <MapView lat={ad.locationLat} lng={ad.locationLng} height="260px" />
                  </div>
-                 <button 
-                   className="btn btn-primary btn-block" 
+                 <button
+                   className="btn btn-primary btn-block"
                    onClick={openDirections}
                    disabled={directionsLoading}
                    style={{ marginTop: 12 }}
@@ -2348,7 +2304,6 @@ function Footer({ navigate }) {
              <StatusBadge status={ad.status} />
              {ad.businessVerified && <span style={{ marginLeft: 8 }}><VerifiedBadge /></span>}
              <h1 style={{ marginTop: 10 }}>{ad.jobTitle}</h1>
-             {/* Shows businessTypeOf(ad) here too. */}
              <div className="biz-name">{ad.businessName} · {businessTypeOf(ad)}</div>
              {distanceKm != null && <DistanceChip km={distanceKm} />}
    
@@ -2388,7 +2343,6 @@ function Footer({ navigate }) {
                </div>
              )}
    
-             {/* Save & Report are available to every role (worker, business, admin) — not gated by userType. */}
              {ad.status === 'active' && !isOwner && (
                <div className="action-row">
                  <button className={`btn ${saved ? 'btn-success' : 'btn-outline'} btn-block`} onClick={toggleSave}>
@@ -2510,302 +2464,294 @@ function Footer({ navigate }) {
      );
    }
    
-// ==============================================================
-// AD FORM PAGE — v14 (section cards, chips, stepper, safe photos)
-// In App.js, delete the old `function AdFormPage(...) { ... }` and paste
-// everything in this file in its place (ChipGroup, FormSection, splitSalary,
-// AdFormPage). BLANK_FORM, SalaryBenchmarkHint, ImageUploader and
-// LocationPicker stay exactly as they are.
-// ==============================================================
-
-function ChipGroup({ options, value, onChange }) {
-  return (
-    <div className="chip-group">
-      {options.map((o) => (
-        <button
-          type="button"
-          key={o}
-          className={`chip ${value === o ? 'selected' : ''}`}
-          onClick={() => onChange(o)}
-        >
-          {value === o && <span className="chip-check">✓</span>}
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function FormSection({ num, icon, title, subtitle, children }) {
-  return (
-    <section className="form-card">
-      <header className="form-card-head">
-        <div className="form-card-icon">{icon}</div>
-        <div>
-          <h2>{num}. {title}</h2>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-      </header>
-      <div className="form-card-body">{children}</div>
-    </section>
-  );
-}
-
-// "12000-15000" -> ['12000', '15000']; anything non-numeric is kept as-is in min.
-function splitSalary(s) {
-  const raw = String(s || '').trim();
-  if (!raw) return ['', ''];
-  const m = raw.match(/^(\d+)\s*(?:-|to)?\s*(\d+)?$/i);
-  return m ? [m[1], m[2] || ''] : [raw, ''];
-}
-
-function AdFormPage({ navigate, mode, adId }) {
-  const { user } = useAuth();
-  const toast = useToast();
-  const t = useT();
-  const isEdit = mode === 'edit';
-  const [form, setForm] = useState({ ...BLANK_FORM, salaryMin: '', salaryMax: '' });
-  const [images, setImages] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(isEdit);
-  const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
-
-  useEffect(() => {
-    if (!isEdit || !canPostAds(user)) return;
-    apiCall('getAdById', { adId, viewerId: user.userId }).then((data) => {
-      const ad = data.ad;
-      if (ad.postedBy !== user.userId) { setNotFoundOrForbidden(true); setLoading(false); return; }
-      const [salaryMin, salaryMax] = splitSalary(ad.salary);
-      setForm({
-        businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
-        customBusinessType: ad.customBusinessType || '',
-        jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
-        customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
-        salaryMin, salaryMax,
-        education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
-        workingHours: ad.workingHours || '', description: ad.description || '', contactPhone: ad.contactPhone || '',
-        locationLat: ad.locationLat, locationLng: ad.locationLng, locationAddress: ad.locationAddress || '',
-        urgent: !!ad.urgent
-      });
-      setImages(ad.images || []);
-      setLoading(false);
-    }).catch(() => { setNotFoundOrForbidden(true); setLoading(false); });
-  }, [isEdit, adId, user.userId, user]);
-
-  if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
-
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  const digitsOnly = (v) => v.replace(/[^\d]/g, '');
-  const workers = Math.max(1, Number(form.numWorkers) || 1);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!form.businessName.trim() || !form.jobTitle.trim()) {
-      setError('Business name and job title are required.'); return;
-    }
-    const phone = String(form.contactPhone || '').replace(/\D/g, '');
-    if (phone && phone.length !== 10) {
-      setError('Please enter a valid 10-digit mobile number.'); return;
-    }
-    if (form.businessType === 'Other' && !form.customBusinessType.trim()) {
-      setError('Please describe your business type.'); return;
-    }
-    if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
-      setError('Please describe the worker category.'); return;
-    }
-    if (form.salaryMin && form.salaryMax && /^\d+$/.test(form.salaryMin) && Number(form.salaryMax) < Number(form.salaryMin)) {
-      setError('Maximum salary cannot be lower than minimum salary.'); return;
-    }
-
-    const { salaryMin, salaryMax, ...rest } = form;
-    const salary = salaryMin && salaryMax ? `${salaryMin}-${salaryMax}` : (salaryMin || salaryMax || '');
-    const payload = { ...rest, salary, numWorkers: workers, contactPhone: phone, images };
-
-    setSubmitting(true); setError(null);
-    try {
-      if (isEdit) {
-        await apiCall('updateAd', { ...payload, adId, postedBy: user.userId });
-        toast('Advertisement updated.', 'success');
-        navigate('details', { adId });
-      } else {
-        await apiCall('createAd', { ...payload, postedBy: user.userId, postedByName: user.name });
-        toast('Advertisement posted successfully!', 'success');
-        navigate('home');
-      }
-    } catch (err) { setError(err.message); } finally { setSubmitting(false); }
-  };
-
-  if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
-  if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
-
-  const previewFallbackImage = images.length === 0 ? getDefaultAdImage(form) : null;
-
-  return (
-    <div className="container ad-form-page">
-      <div className="ad-form-intro form-card">
-        <span className="free-pill">100% free to post</span>
-        <h1>{isEdit ? 'Edit your requirement' : t('postAJob')}</h1>
-        <p>
-          {isEdit
-            ? 'Update the details below — changes go live immediately.'
-            : 'Fill in the details in about 2 minutes. Job seekers will contact you directly by call or WhatsApp.'}
-        </p>
-      </div>
-
-      <form onSubmit={submit} noValidate>
-        <FormSection num={1} icon="📞" title="Contact details" subtitle="Job seekers will reach you directly on this number">
-          <div className="field">
-            <label>Mobile / WhatsApp number</label>
-            <input
-              type="tel" inputMode="numeric" maxLength={10}
-              value={form.contactPhone}
-              onChange={(e) => set('contactPhone', digitsOnly(e.target.value))}
-              placeholder="10-digit mobile number"
-            />
-            <div className="field-hint">Used for the "Call" and WhatsApp "Apply Now" buttons.</div>
-          </div>
-        </FormSection>
-
-        <FormSection num={2} icon="🏢" title="Business information" subtitle="Tell workers who is hiring">
-          <div className="field">
-            <label>Business / workplace name *</label>
-            <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." />
-          </div>
-          <div className="field">
-            <label>Business type</label>
-            <ChipGroup
-              options={BUSINESS_TYPES}
-              value={form.businessType}
-              onChange={(next) => setForm((f) => ({ ...f, businessType: next, customBusinessType: next === 'Other' ? f.customBusinessType : '' }))}
-            />
-          </div>
-          {form.businessType === 'Other' && (
-            <div className="field custom-category-field">
-              <label>What kind of business is this? *</label>
-              <input value={form.customBusinessType} onChange={(e) => set('customBusinessType', e.target.value)} placeholder="e.g. NGO, Farm, Studio, Clinic" />
-            </div>
-          )}
-        </FormSection>
-
-        <FormSection num={3} icon="🧰" title="Job details" subtitle="What kind of worker do you need?">
-          <div className="field">
-            <label>Job title *</label>
-            <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="e.g. Machine Operator" />
-          </div>
-          <div className="field">
-            <label>Worker category</label>
-            <ChipGroup
-              options={WORKER_CATEGORIES}
-              value={form.workerCategory}
-              onChange={(next) => setForm((f) => ({ ...f, workerCategory: next, customCategory: next === 'Other' ? f.customCategory : '' }))}
-            />
-          </div>
-          {form.workerCategory === 'Other' && (
-            <div className="field custom-category-field">
-              <label>What kind of worker are you looking for? *</label>
-              <input value={form.customCategory} onChange={(e) => set('customCategory', e.target.value)} placeholder="e.g. Gardener, Painter, Data Entry" />
-            </div>
-          )}
-          <div className="field">
-            <label>Number of workers needed</label>
-            <div className="stepper">
-              <button type="button" onClick={() => set('numWorkers', Math.max(1, workers - 1))} aria-label="Fewer workers">−</button>
-              <input
-                inputMode="numeric" value={form.numWorkers}
-                onChange={(e) => set('numWorkers', digitsOnly(e.target.value))}
-                onBlur={() => set('numWorkers', workers)}
-              />
-              <button type="button" onClick={() => set('numWorkers', workers + 1)} aria-label="More workers">+</button>
-            </div>
-          </div>
-          <label className="toggle-row">
-            <input type="checkbox" checked={!!form.urgent} onChange={(e) => set('urgent', e.target.checked)} />
-            <span>
-              <strong>🔥 Hiring today</strong>
-              <small>Mark as urgent — shown with an Urgent badge and in the "Hiring Today" section.</small>
-            </span>
-          </label>
-        </FormSection>
-
-        <FormSection num={4} icon="💰" title="Pay & requirements" subtitle="Clear pay and hours get more responses">
-          <div className="field">
-            <label>Monthly salary (₹)</label>
-            <div className="field-row">
-              <input inputMode="numeric" value={form.salaryMin} onChange={(e) => set('salaryMin', e.target.value)} placeholder="Min, e.g. 12000" />
-              <span className="field-row-sep">to</span>
-              <input inputMode="numeric" value={form.salaryMax} onChange={(e) => set('salaryMax', digitsOnly(e.target.value))} placeholder="Max, e.g. 15000" />
-            </div>
-            <SalaryBenchmarkHint category={categoryOf({ workerCategory: form.workerCategory, customCategory: form.customCategory })} />
-          </div>
-          <div className="form-grid">
-            <div className="field">
-              <label>Working hours</label>
-              <input value={form.workingHours} onChange={(e) => set('workingHours', e.target.value)} placeholder="e.g. 9 AM – 6 PM, 6 days/week" />
-            </div>
-            <div className="field">
-              <label>Experience required</label>
-              <input value={form.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. 1+ years / freshers ok" />
-            </div>
-            <div className="field">
-              <label>Education requirement</label>
-              <input value={form.education} onChange={(e) => set('education', e.target.value)} placeholder="e.g. 10th pass / none" />
-            </div>
-            <div className="field">
-              <label>Skills required</label>
-              <input value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="e.g. stitching, ironing" />
-            </div>
-          </div>
-        </FormSection>
-
-        <FormSection num={5} icon="📝" title="Job description" subtitle="Responsibilities, benefits, joining date">
-          <div className="field">
-            <textarea
-              value={form.description}
-              onChange={(e) => set('description', e.target.value)}
-              placeholder="Describe the role (e.g. daily duties, free lunch, overtime pay, immediate joining)..."
-            />
-          </div>
-        </FormSection>
-
-        <FormSection num={6} icon="📷" title="Photos" subtitle="Real workplace photos build trust (optional)">
-          <ImageUploader images={images} onChange={setImages} />
-          <div className="photo-fallback-hint">
-            {previewFallbackImage ? (
-              <>
-                <img src={previewFallbackImage} alt="Representative preview" className="photo-fallback-hint-img" />
-                <p>
-                  No photos yet? We'll show this representative photo (matched to your business type)
-                  until you upload real ones, so your listing never looks empty.
-                </p>
-              </>
-            ) : (
-              <p>✓ Your uploaded photos will be shown on this listing.</p>
-            )}
-          </div>
-        </FormSection>
-
-        <FormSection num={7} icon="📍" title="Workplace location" subtitle="Pin the map so nearby workers can find you">
-          <LocationPicker
-            lat={form.locationLat} lng={form.locationLng} address={form.locationAddress}
-            onChange={(lat, lng, address) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng, locationAddress: address }))}
-          />
-        </FormSection>
-
-        {error && <div className="error-box" style={{ marginBottom: 14 }}>{error}</div>}
-
-        <div className="form-actions-bar">
-          {isEdit && (
-            <button type="button" className="btn btn-outline" onClick={() => navigate('details', { adId })}>Cancel</button>
-          )}
-          <button className="btn btn-primary btn-block" disabled={submitting}>
-            {submitting ? 'Saving...' : (isEdit ? 'Save changes' : 'Post advertisement')}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
+   function ChipGroup({ options, value, onChange }) {
+     return (
+       <div className="chip-group">
+         {options.map((o) => (
+           <button
+             type="button"
+             key={o}
+             className={`chip ${value === o ? 'selected' : ''}`}
+             onClick={() => onChange(o)}
+           >
+             {value === o && <span className="chip-check">✓</span>}
+             {o}
+           </button>
+         ))}
+       </div>
+     );
+   }
+   
+   function FormSection({ num, icon, title, subtitle, children }) {
+     return (
+       <section className="form-card">
+         <header className="form-card-head">
+           <div className="form-card-icon">{icon}</div>
+           <div>
+             <h2>{num}. {title}</h2>
+             {subtitle && <p>{subtitle}</p>}
+           </div>
+         </header>
+         <div className="form-card-body">{children}</div>
+       </section>
+     );
+   }
+   
+   // "12000-15000" -> ['12000', '15000']; anything non-numeric is kept as-is in min.
+   function splitSalary(s) {
+     const raw = String(s || '').trim();
+     if (!raw) return ['', ''];
+     const m = raw.match(/^(\d+)\s*(?:-|to)?\s*(\d+)?$/i);
+     return m ? [m[1], m[2] || ''] : [raw, ''];
+   }
+   
+   function AdFormPage({ navigate, mode, adId }) {
+     const { user } = useAuth();
+     const toast = useToast();
+     const t = useT();
+     const isEdit = mode === 'edit';
+     const [form, setForm] = useState({ ...BLANK_FORM, salaryMin: '', salaryMax: '' });
+     const [images, setImages] = useState([]);
+     const [submitting, setSubmitting] = useState(false);
+     const [error, setError] = useState(null);
+     const [loading, setLoading] = useState(isEdit);
+     const [notFoundOrForbidden, setNotFoundOrForbidden] = useState(false);
+   
+     useEffect(() => {
+       if (!isEdit || !canPostAds(user)) return;
+       apiCall('getAdById', { adId, viewerId: user.userId }).then((data) => {
+         const ad = data.ad;
+         if (ad.postedBy !== user.userId) { setNotFoundOrForbidden(true); setLoading(false); return; }
+         const [salaryMin, salaryMax] = splitSalary(ad.salary);
+         setForm({
+           businessName: ad.businessName || '', businessType: ad.businessType || BUSINESS_TYPES[0],
+           customBusinessType: ad.customBusinessType || '',
+           jobTitle: ad.jobTitle || '', workerCategory: ad.workerCategory || WORKER_CATEGORIES[0],
+           customCategory: ad.customCategory || '', numWorkers: ad.numWorkers || 1, salary: ad.salary || '',
+           salaryMin, salaryMax,
+           education: ad.education || '', experience: ad.experience || '', skills: ad.skills || '',
+           workingHours: ad.workingHours || '', description: ad.description || '', contactPhone: ad.contactPhone || '',
+           locationLat: ad.locationLat, locationLng: ad.locationLng, locationAddress: ad.locationAddress || '',
+           urgent: !!ad.urgent
+         });
+         setImages(ad.images || []);
+         setLoading(false);
+       }).catch(() => { setNotFoundOrForbidden(true); setLoading(false); });
+     }, [isEdit, adId, user.userId, user]);
+   
+     if (!canPostAds(user)) return <PostNotAllowedPage navigate={navigate} />;
+   
+     const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+     const digitsOnly = (v) => v.replace(/[^\d]/g, '');
+     const workers = Math.max(1, Number(form.numWorkers) || 1);
+   
+     const submit = async (e) => {
+       e.preventDefault();
+       if (!form.businessName.trim() || !form.jobTitle.trim()) {
+         setError('Business name and job title are required.'); return;
+       }
+       const phone = String(form.contactPhone || '').replace(/\D/g, '');
+       if (phone && phone.length !== 10) {
+         setError('Please enter a valid 10-digit mobile number.'); return;
+       }
+       if (form.businessType === 'Other' && !form.customBusinessType.trim()) {
+         setError('Please describe your business type.'); return;
+       }
+       if (form.workerCategory === 'Other' && !form.customCategory.trim()) {
+         setError('Please describe the worker category.'); return;
+       }
+       if (form.salaryMin && form.salaryMax && /^\d+$/.test(form.salaryMin) && Number(form.salaryMax) < Number(form.salaryMin)) {
+         setError('Maximum salary cannot be lower than minimum salary.'); return;
+       }
+   
+       const { salaryMin, salaryMax, ...rest } = form;
+       const salary = salaryMin && salaryMax ? `${salaryMin}-${salaryMax}` : (salaryMin || salaryMax || '');
+       const payload = { ...rest, salary, numWorkers: workers, contactPhone: phone, images };
+   
+       setSubmitting(true); setError(null);
+       try {
+         if (isEdit) {
+           await apiCall('updateAd', { ...payload, adId, postedBy: user.userId });
+           toast('Advertisement updated.', 'success');
+           navigate('details', { adId });
+         } else {
+           await apiCall('createAd', { ...payload, postedBy: user.userId, postedByName: user.name });
+           toast('Advertisement posted successfully!', 'success');
+           navigate('home');
+         }
+       } catch (err) { setError(err.message); } finally { setSubmitting(false); }
+     };
+   
+     if (loading) return <div className="container"><Spinner label="Loading advertisement..." /></div>;
+     if (notFoundOrForbidden) return <div className="container"><ErrorState message="You can't edit this advertisement." onRetry={() => navigate('dashboard')} /></div>;
+   
+     const previewFallbackImage = images.length === 0 ? getDefaultAdImage(form) : null;
+   
+     return (
+       <div className="container ad-form-page">
+         <div className="ad-form-intro form-card">
+           <span className="free-pill">100% free to post</span>
+           <h1>{isEdit ? 'Edit your requirement' : t('postAJob')}</h1>
+           <p>
+             {isEdit
+               ? 'Update the details below — changes go live immediately.'
+               : 'Fill in the details in about 2 minutes. Job seekers will contact you directly by call or WhatsApp.'}
+           </p>
+         </div>
+   
+         <form onSubmit={submit} noValidate>
+           <FormSection num={1} icon="📞" title="Contact details" subtitle="Job seekers will reach you directly on this number">
+             <div className="field">
+               <label>Mobile / WhatsApp number</label>
+               <input
+                 type="tel" inputMode="numeric" maxLength={10}
+                 value={form.contactPhone}
+                 onChange={(e) => set('contactPhone', digitsOnly(e.target.value))}
+                 placeholder="10-digit mobile number"
+               />
+               <div className="field-hint">Used for the "Call" and WhatsApp "Apply Now" buttons.</div>
+             </div>
+           </FormSection>
+   
+           <FormSection num={2} icon="🏢" title="Business information" subtitle="Tell workers who is hiring">
+             <div className="field">
+               <label>Business / workplace name *</label>
+               <input value={form.businessName} onChange={(e) => set('businessName', e.target.value)} placeholder="e.g. Shree Textiles Pvt. Ltd." />
+             </div>
+             <div className="field">
+               <label>Business type</label>
+               <ChipGroup
+                 options={BUSINESS_TYPES}
+                 value={form.businessType}
+                 onChange={(next) => setForm((f) => ({ ...f, businessType: next, customBusinessType: next === 'Other' ? f.customBusinessType : '' }))}
+               />
+             </div>
+             {form.businessType === 'Other' && (
+               <div className="field custom-category-field">
+                 <label>What kind of business is this? *</label>
+                 <input value={form.customBusinessType} onChange={(e) => set('customBusinessType', e.target.value)} placeholder="e.g. NGO, Farm, Studio, Clinic" />
+               </div>
+             )}
+           </FormSection>
+   
+           <FormSection num={3} icon="🧰" title="Job details" subtitle="What kind of worker do you need?">
+             <div className="field">
+               <label>Job title *</label>
+               <input value={form.jobTitle} onChange={(e) => set('jobTitle', e.target.value)} placeholder="e.g. Machine Operator" />
+             </div>
+             <div className="field">
+               <label>Worker category</label>
+               <ChipGroup
+                 options={WORKER_CATEGORIES}
+                 value={form.workerCategory}
+                 onChange={(next) => setForm((f) => ({ ...f, workerCategory: next, customCategory: next === 'Other' ? f.customCategory : '' }))}
+               />
+             </div>
+             {form.workerCategory === 'Other' && (
+               <div className="field custom-category-field">
+                 <label>What kind of worker are you looking for? *</label>
+                 <input value={form.customCategory} onChange={(e) => set('customCategory', e.target.value)} placeholder="e.g. Gardener, Painter, Data Entry" />
+               </div>
+             )}
+             <div className="field">
+               <label>Number of workers needed</label>
+               <div className="stepper">
+                 <button type="button" onClick={() => set('numWorkers', Math.max(1, workers - 1))} aria-label="Fewer workers">−</button>
+                 <input
+                   inputMode="numeric" value={form.numWorkers}
+                   onChange={(e) => set('numWorkers', digitsOnly(e.target.value))}
+                   onBlur={() => set('numWorkers', workers)}
+                 />
+                 <button type="button" onClick={() => set('numWorkers', workers + 1)} aria-label="More workers">+</button>
+               </div>
+             </div>
+             <label className="toggle-row">
+               <input type="checkbox" checked={!!form.urgent} onChange={(e) => set('urgent', e.target.checked)} />
+               <span>
+                 <strong>🔥 Hiring today</strong>
+                 <small>Mark as urgent — shown with an Urgent badge and in the "Hiring Today" section.</small>
+               </span>
+             </label>
+           </FormSection>
+   
+           <FormSection num={4} icon="💰" title="Pay & requirements" subtitle="Clear pay and hours get more responses">
+             <div className="field">
+               <label>Monthly salary (₹)</label>
+               <div className="field-row">
+                 <input inputMode="numeric" value={form.salaryMin} onChange={(e) => set('salaryMin', e.target.value)} placeholder="Min, e.g. 12000" />
+                 <span className="field-row-sep">to</span>
+                 <input inputMode="numeric" value={form.salaryMax} onChange={(e) => set('salaryMax', digitsOnly(e.target.value))} placeholder="Max, e.g. 15000" />
+               </div>
+               <SalaryBenchmarkHint category={categoryOf({ workerCategory: form.workerCategory, customCategory: form.customCategory })} />
+             </div>
+             <div className="form-grid">
+               <div className="field">
+                 <label>Working hours</label>
+                 <input value={form.workingHours} onChange={(e) => set('workingHours', e.target.value)} placeholder="e.g. 9 AM – 6 PM, 6 days/week" />
+               </div>
+               <div className="field">
+                 <label>Experience required</label>
+                 <input value={form.experience} onChange={(e) => set('experience', e.target.value)} placeholder="e.g. 1+ years / freshers ok" />
+               </div>
+               <div className="field">
+                 <label>Education requirement</label>
+                 <input value={form.education} onChange={(e) => set('education', e.target.value)} placeholder="e.g. 10th pass / none" />
+               </div>
+               <div className="field">
+                 <label>Skills required</label>
+                 <input value={form.skills} onChange={(e) => set('skills', e.target.value)} placeholder="e.g. stitching, ironing" />
+               </div>
+             </div>
+           </FormSection>
+   
+           <FormSection num={5} icon="📝" title="Job description" subtitle="Responsibilities, benefits, joining date">
+             <div className="field">
+               <textarea
+                 value={form.description}
+                 onChange={(e) => set('description', e.target.value)}
+                 placeholder="Describe the role (e.g. daily duties, free lunch, overtime pay, immediate joining)..."
+               />
+             </div>
+           </FormSection>
+   
+           <FormSection num={6} icon="📷" title="Photos" subtitle="Real workplace photos build trust (optional)">
+             <ImageUploader images={images} onChange={setImages} />
+             <div className="photo-fallback-hint">
+               {previewFallbackImage ? (
+                 <>
+                   <img src={previewFallbackImage} alt="Representative preview" className="photo-fallback-hint-img" />
+                   <p>
+                     No photos yet? We'll show this representative photo (matched to your business type)
+                     until you upload real ones, so your listing never looks empty.
+                   </p>
+                 </>
+               ) : (
+                 <p>✓ Your uploaded photos will be shown on this listing.</p>
+               )}
+             </div>
+           </FormSection>
+   
+           <FormSection num={7} icon="📍" title="Workplace location" subtitle="Pin the map so nearby workers can find you">
+             <LocationPicker
+               lat={form.locationLat} lng={form.locationLng} address={form.locationAddress}
+               onChange={(lat, lng, address) => setForm((f) => ({ ...f, locationLat: lat, locationLng: lng, locationAddress: address }))}
+             />
+           </FormSection>
+   
+           {error && <div className="error-box" style={{ marginBottom: 14 }}>{error}</div>}
+   
+           <div className="form-actions-bar">
+             {isEdit && (
+               <button type="button" className="btn btn-outline" onClick={() => navigate('details', { adId })}>Cancel</button>
+             )}
+             <button className="btn btn-primary btn-block" disabled={submitting}>
+               {submitting ? 'Saving...' : (isEdit ? 'Save changes' : 'Post advertisement')}
+             </button>
+           </div>
+         </form>
+       </div>
+     );
+   }
    
    // ------------------------------------------------------------
    // IMAGE UPLOADER
@@ -2865,7 +2811,6 @@ function AdFormPage({ navigate, mode, adId }) {
      );
    }
    
-   // Single-image uploader used for a worker's circular profile photo.
    function ProfilePhotoUploader({ photo, onChange }) {
      const inputRef = useRef(null);
      const [uploading, setUploading] = useState(false);
@@ -2976,12 +2921,6 @@ function AdFormPage({ navigate, mode, adId }) {
      const t = useT();
      const { user } = useAuth();
      const whatsappLink = buildWhatsAppLink(worker.phone, `Hi ${worker.name}, I saw your profile on Rojgar AREA and I'd like to talk about a job opportunity.`);
-     // NEW (v11): the quick "Apply on WhatsApp" button on the Find Workers
-     // LIST used to open wa.me directly, bypassing the login requirement
-     // on the worker's full profile page. It now checks login state
-     // itself: logged-out visitors are sent to log in / sign up first
-     // (and land right back on this worker's profile afterwards),
-     // logged-in visitors get the real WhatsApp deep link as before.
      const goToLoginThenProfile = (e) => {
        e.stopPropagation();
        if (navigate) {
@@ -2995,7 +2934,15 @@ function AdFormPage({ navigate, mode, adId }) {
              <PersonAvatar src={worker.profilePhoto} size={48} />
              <div>
                <div className="ad-card-title" style={{ marginBottom: 0 }}>
-                 {worker.name}
+                 {/* Real link so the worker profile URL is discoverable */}
+                 <AppLink
+                   page="worker-details"
+                   params={{ userId: worker.userId }}
+                   style={{ color: 'inherit', textDecoration: 'none' }}
+                   onClick={(e) => e.stopPropagation()}
+                 >
+                   {worker.name}
+                 </AppLink>
                  {worker.verified && <VerifiedBadge small />}
                </div>
                <div className="ad-card-biz">{worker.skillCategories || 'General worker'}</div>
@@ -3005,11 +2952,6 @@ function AdFormPage({ navigate, mode, adId }) {
              <span>🧰 {worker.experienceYears ? `${worker.experienceYears} experience` : 'Experience not specified'}</span>
              {worker.availableNow && <span style={{ color: 'var(--success, #1a9d5c)' }}>🟢 {t('availableNow')}</span>}
            </div>
-           {/* NEW (v11): the raw phone number on this public list "outer
-               box" is now only shown to logged-in visitors, matching the
-               WhatsApp button below (which already required login). This
-               keeps a worker's phone number from being visible to anyone
-               just browsing without an account. */}
            {user && worker.phone && (
              <div className="ad-card-meta" style={{ marginTop: -2 }}>
                <span>📞 {worker.phone}</span>
@@ -3053,7 +2995,6 @@ function AdFormPage({ navigate, mode, adId }) {
      );
    }
    
-   // Content rendered inside the "Filters" drawer on the Find Workers page.
    function WorkerFilterPanel({ filters, setFilters, geoStatus, onRequestLocation, resultCount, totalCount, withLocationCount }) {
      const t = useT();
      const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
@@ -3115,96 +3056,91 @@ function AdFormPage({ navigate, mode, adId }) {
    }
    
    function WorkersBrowsePage({ navigate }) {
-    const t = useT();
-    const geo = useGeo();
-    const [rawWorkers, setRawWorkers] = useState(null);
-    const [error, setError] = useState(null);
-    const [filters, setFilters] = useState({ ...WORKER_EMPTY_FILTERS });
-    const [filtersOpen, setFiltersOpen] = useState(false);
-  
-    const load = useCallback(() => {
-      setRawWorkers(null); setError(null);
-      apiCall('searchWorkers', { search: filters.search, category: filters.category, availableOnly: filters.availableOnly })
-        .then((d) => setRawWorkers(d.workers))
-        .catch((e) => setError(e.message));
-    }, [filters.search, filters.category, filters.availableOnly]);
-  
-    useEffect(() => {
-      const timer = setTimeout(load, 250);
-      return () => clearTimeout(timer);
-    }, [load]);
-  
-    // Radius/sort/distance are computed client-side (mirrors filterAndSortAds)
-    // so this actually reflects the worker's saved profile location.
-    const workers = useMemo(() => {
-      if (!rawWorkers) return null;
-      return filterAndSortWorkers(rawWorkers, filters, geo.coords);
-    }, [rawWorkers, filters, geo.coords]);
-  
-    const withLocationCount = useMemo(
-      () => (rawWorkers || []).filter((w) => w.locationLat != null && w.locationLng != null).length,
-      [rawWorkers]
-    );
-  
-    return (
-      <div className="container">
-        <div className="section-head" style={{ marginTop: 30 }}>
-          <h2>{t('workersNearYou')} {workers && <span className="count-pill">{workers.length}</span>}</h2>
-          <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
-            ☰ Filters
-          </button>
-        </div>
-  
-        <LocationBanner compact />
-  
-        <div className="browse-layout">
-          {/* Desktop Filters - always visible on desktop */}
-          <div className="filter-sidebar-desktop">
-            <WorkerFilterPanel
-              filters={filters}
-              setFilters={setFilters}
-              geoStatus={geo.status}
-              onRequestLocation={geo.request}
-              resultCount={workers ? workers.length : undefined}
-              totalCount={rawWorkers ? rawWorkers.length : undefined}
-              withLocationCount={rawWorkers ? withLocationCount : undefined}
-            />
-          </div>
-  
-          {/* Results */}
-          <div className="browse-results-full">
-            {rawWorkers === null && !error && <Spinner label="Loading workers..." />}
-            {error && <ErrorState message={error} onRetry={load} />}
-            {workers && workers.length === 0 && (
-              <EmptyState icon="🧰" title="No worker profiles found" message="Workers who complete their profile will show up here." />
-            )}
-            {workers && workers.length > 0 && (
-              <div className="grid">
-                {workers.map((w, i) => (
-                  <AnimatedCard key={w.userId} delay={i % 10 * 50}>
-                    <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} navigate={navigate} />
-                  </AnimatedCard>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-  
-        {/* Mobile Filter Drawer */}
-        <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
-          <WorkerFilterPanel
-            filters={filters}
-            setFilters={setFilters}
-            geoStatus={geo.status}
-            onRequestLocation={geo.request}
-            resultCount={workers ? workers.length : undefined}
-            totalCount={rawWorkers ? rawWorkers.length : undefined}
-            withLocationCount={rawWorkers ? withLocationCount : undefined}
-          />
-        </FilterDrawer>
-      </div>
-    );
-  }
+     const t = useT();
+     const geo = useGeo();
+     const [rawWorkers, setRawWorkers] = useState(null);
+     const [error, setError] = useState(null);
+     const [filters, setFilters] = useState({ ...WORKER_EMPTY_FILTERS });
+     const [filtersOpen, setFiltersOpen] = useState(false);
+   
+     const load = useCallback(() => {
+       setRawWorkers(null); setError(null);
+       apiCall('searchWorkers', { search: filters.search, category: filters.category, availableOnly: filters.availableOnly })
+         .then((d) => setRawWorkers(d.workers))
+         .catch((e) => setError(e.message));
+     }, [filters.search, filters.category, filters.availableOnly]);
+   
+     useEffect(() => {
+       const timer = setTimeout(load, 250);
+       return () => clearTimeout(timer);
+     }, [load]);
+   
+     const workers = useMemo(() => {
+       if (!rawWorkers) return null;
+       return filterAndSortWorkers(rawWorkers, filters, geo.coords);
+     }, [rawWorkers, filters, geo.coords]);
+   
+     const withLocationCount = useMemo(
+       () => (rawWorkers || []).filter((w) => w.locationLat != null && w.locationLng != null).length,
+       [rawWorkers]
+     );
+   
+     return (
+       <div className="container">
+         <div className="section-head" style={{ marginTop: 30 }}>
+           <h1 style={{ fontSize: 28, margin: 0 }}>{t('workersNearYou')} {workers && <span className="count-pill">{workers.length}</span>}</h1>
+           <button className="btn btn-outline filters-toggle-btn" onClick={() => setFiltersOpen(true)}>
+             ☰ Filters
+           </button>
+         </div>
+   
+         <LocationBanner compact />
+   
+         <div className="browse-layout">
+           <div className="filter-sidebar-desktop">
+             <WorkerFilterPanel
+               filters={filters}
+               setFilters={setFilters}
+               geoStatus={geo.status}
+               onRequestLocation={geo.request}
+               resultCount={workers ? workers.length : undefined}
+               totalCount={rawWorkers ? rawWorkers.length : undefined}
+               withLocationCount={rawWorkers ? withLocationCount : undefined}
+             />
+           </div>
+   
+           <div className="browse-results-full">
+             {rawWorkers === null && !error && <Spinner label="Loading workers..." />}
+             {error && <ErrorState message={error} onRetry={load} />}
+             {workers && workers.length === 0 && (
+               <EmptyState icon="🧰" title="No worker profiles found" message="Workers who complete their profile will show up here." />
+             )}
+             {workers && workers.length > 0 && (
+               <div className="grid">
+                 {workers.map((w, i) => (
+                   <AnimatedCard key={w.userId} delay={i % 10 * 50}>
+                     <WorkerCard worker={w} onClick={() => navigate('worker-details', { userId: w.userId })} navigate={navigate} />
+                   </AnimatedCard>
+                 ))}
+               </div>
+             )}
+           </div>
+         </div>
+   
+         <FilterDrawer open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
+           <WorkerFilterPanel
+             filters={filters}
+             setFilters={setFilters}
+             geoStatus={geo.status}
+             onRequestLocation={geo.request}
+             resultCount={workers ? workers.length : undefined}
+             totalCount={rawWorkers ? rawWorkers.length : undefined}
+             withLocationCount={rawWorkers ? withLocationCount : undefined}
+           />
+         </FilterDrawer>
+       </div>
+     );
+   }
    
    function WorkerProfileViewPage({ userId, navigate }) {
      const { user } = useAuth();
@@ -3218,10 +3154,6 @@ function AdFormPage({ navigate, mode, adId }) {
      const [lightboxIndex, setLightboxIndex] = useState(null);
      const [directionsLoading, setDirectionsLoading] = useState(false);
    
-     // NEW (v11): this page is only ever reached while logged in (see
-     // MainRouter's 'worker-details' case), so `user` is always present
-     // here. getWorkerProfile now also requires a viewerId server-side —
-     // see Code.gs.
      const load = useCallback(() => {
        setWorker(null); setError(null);
        apiCall('getWorkerProfile', { userId, viewerId: user ? user.userId : undefined })
@@ -3384,9 +3316,6 @@ function AdFormPage({ navigate, mode, adId }) {
      const [error, setError] = useState(null);
    
      useEffect(() => {
-       // NEW (v11): pass viewerId (same as userId here, since you're
-       // always allowed to view your own profile) now that
-       // getWorkerProfile requires a logged-in viewer server-side.
        apiCall('getWorkerProfile', { userId: user.userId, viewerId: user.userId }).then((d) => setForm(d.user)).catch((e) => setError(e.message));
      }, [user.userId]);
    
@@ -3399,15 +3328,10 @@ function AdFormPage({ navigate, mode, adId }) {
      const needsWorkerPhone = form.userType === 'worker' || form.userType === 'both';
    
      const save = async () => {
-       // FIX: previously you could save with only a typed address and no
-       // map pin — the address text saved fine, but "Workers near you"
-       // needs real coordinates, so those profiles were invisible there.
        if (needsWorkerLocation && !hasLocation) {
          setError('Please pin your location on the map below before saving — an address alone isn\'t enough for "Workers near you" to find you.');
          return;
        }
-       // Phone is mandatory for any account that can show up as a worker,
-       // since it's the primary way businesses reach out from "Find Workers".
        if (needsWorkerPhone && !String(form.phone || '').trim()) {
          setError('A phone number is required so businesses can contact you from "Find Workers".');
          return;
@@ -3543,67 +3467,63 @@ function AdFormPage({ navigate, mode, adId }) {
    // USER DASHBOARD
    // ==============================================================
    function UserDashboardPage({ navigate }) {
-    const { user } = useAuth();
-    const [tab, setTab] = useState(() => (canPostAds(user) ? 'myads' : 'saved'));
-    const [menuOpen, setMenuOpen] = useState(false);
-  
-    const tabDefs = [
-      ...(canPostAds(user) ? [{ id: 'myads', label: 'My posted ads' }] : []),
-      { id: 'saved', label: 'Saved advertisements' },
-      { id: 'reports', label: 'My reports' },
-      { id: 'profile', label: 'My Profile' },
-    ];
-    const currentLabel = (tabDefs.find((tb) => tb.id === tab) || {}).label || 'My dashboard';
-  
-    return (
-      <div className="container form-page" style={{ maxWidth: 1000 }}>
-        <h1>My dashboard</h1>
-        <p style={{ color: 'var(--text-mute)', marginBottom: 20 }}>Welcome back, {user.name}.</p>
-  
-        {/* Desktop Tabs */}
-        <div className="dashboard-tabs-desktop">
-          {tabDefs.map((tb) => (
-            <button
-              key={tb.id}
-              className={`dashboard-tab-btn ${tab === tb.id ? 'active' : ''}`}
-              onClick={() => setTab(tb.id)}
-            >
-              {tb.label}
-            </button>
-          ))}
-        </div>
-  
-        {/* Mobile Menu Button */}
-        <div className="section-head" style={{ marginTop: 0, marginBottom: 18 }}>
-          <h2 style={{ fontSize: 20 }}>{currentLabel}</h2>
-          <button className="btn btn-outline dashboard-menu-toggle" onClick={() => setMenuOpen(true)}>
-            ☰ Menu
-          </button>
-        </div>
-  
-        {/* Tab Content */}
-        {tab === 'myads' && canPostAds(user) && <MyAdsTab navigate={navigate} />}
-        {tab === 'saved' && <SavedAdsTab navigate={navigate} />}
-        {tab === 'reports' && <MyReportsTab />}
-        {tab === 'profile' && <MyProfileTab />}
-  
-        {/* Mobile Menu Drawer */}
-        <FilterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} title="Dashboard menu" side="right">
-          <div className="drawer-tab-list">
-            {tabDefs.map((tb) => (
-              <button
-                key={tb.id}
-                className={`drawer-tab-btn ${tab === tb.id ? 'active' : ''}`}
-                onClick={() => { setTab(tb.id); setMenuOpen(false); }}
-              >
-                {tb.label}
-              </button>
-            ))}
-          </div>
-        </FilterDrawer>
-      </div>
-    );
-  }
+     const { user } = useAuth();
+     const [tab, setTab] = useState(() => (canPostAds(user) ? 'myads' : 'saved'));
+     const [menuOpen, setMenuOpen] = useState(false);
+   
+     const tabDefs = [
+       ...(canPostAds(user) ? [{ id: 'myads', label: 'My posted ads' }] : []),
+       { id: 'saved', label: 'Saved advertisements' },
+       { id: 'reports', label: 'My reports' },
+       { id: 'profile', label: 'My Profile' },
+     ];
+     const currentLabel = (tabDefs.find((tb) => tb.id === tab) || {}).label || 'My dashboard';
+   
+     return (
+       <div className="container form-page" style={{ maxWidth: 1000 }}>
+         <h1>My dashboard</h1>
+         <p style={{ color: 'var(--text-mute)', marginBottom: 20 }}>Welcome back, {user.name}.</p>
+   
+         <div className="dashboard-tabs-desktop">
+           {tabDefs.map((tb) => (
+             <button
+               key={tb.id}
+               className={`dashboard-tab-btn ${tab === tb.id ? 'active' : ''}`}
+               onClick={() => setTab(tb.id)}
+             >
+               {tb.label}
+             </button>
+           ))}
+         </div>
+   
+         <div className="section-head" style={{ marginTop: 0, marginBottom: 18 }}>
+           <h2 style={{ fontSize: 20 }}>{currentLabel}</h2>
+           <button className="btn btn-outline dashboard-menu-toggle" onClick={() => setMenuOpen(true)}>
+             ☰ Menu
+           </button>
+         </div>
+   
+         {tab === 'myads' && canPostAds(user) && <MyAdsTab navigate={navigate} />}
+         {tab === 'saved' && <SavedAdsTab navigate={navigate} />}
+         {tab === 'reports' && <MyReportsTab />}
+         {tab === 'profile' && <MyProfileTab />}
+   
+         <FilterDrawer open={menuOpen} onClose={() => setMenuOpen(false)} title="Dashboard menu" side="right">
+           <div className="drawer-tab-list">
+             {tabDefs.map((tb) => (
+               <button
+                 key={tb.id}
+                 className={`drawer-tab-btn ${tab === tb.id ? 'active' : ''}`}
+                 onClick={() => { setTab(tb.id); setMenuOpen(false); }}
+               >
+                 {tb.label}
+               </button>
+             ))}
+           </div>
+         </FilterDrawer>
+       </div>
+     );
+   }
    
    function SavedAdsTab({ navigate }) {
      const { user } = useAuth();
@@ -3631,7 +3551,7 @@ function AdFormPage({ navigate, mode, adId }) {
        <div className="grid">
          {ads.map((ad) => (
            <div key={ad.adId}>
-             <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+             <AdCard ad={ad} />
              <button className="btn btn-outline btn-sm btn-block" style={{ marginTop: 8 }} onClick={() => unsave(ad.adId)}>Remove from saved</button>
            </div>
          ))}
@@ -3683,7 +3603,7 @@ function AdFormPage({ navigate, mode, adId }) {
        <div className="grid">
          {ads.map((ad) => (
            <div key={ad.adId} className="my-ad-card">
-             <AdCard ad={ad} onClick={() => navigate('details', { adId: ad.adId })} />
+             <AdCard ad={ad} />
              <div className="my-ad-actions">
                <button className="btn btn-outline btn-sm" onClick={() => navigate('edit', { adId: ad.adId })} disabled={ad.status === 'taken_down'}>✎ Edit</button>
                {ad.status !== 'taken_down' && (
@@ -3972,8 +3892,6 @@ function AdFormPage({ navigate, mode, adId }) {
        } catch (err) { toast(err.message, 'error'); } finally { setBusyId(null); }
      };
    
-     // Suspend/restore a worker or business profile — hides them
-     // from public "Find Workers" search and flags their profile page.
      const toggleSuspended = async (u) => {
        setBusyId(u.userId);
        try {
@@ -4053,16 +3971,11 @@ function AdFormPage({ navigate, mode, adId }) {
        } catch (e) {}
      }, []);
    
+     // Keep the form mode in sync if the route changes between /login and /register
+     useEffect(() => { setMode(initialMode || 'login'); }, [initialMode]);
+   
      const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
    
-     // NEW (v11): redirectTo can now be either a plain page name (string,
-     // e.g. 'post' / 'dashboard' / 'admin' / 'home' — the existing
-     // behaviour) OR an object of the shape
-     //   { page, params, message }
-     // used by the new "log in to view this listing / profile" gates in
-     // MainRouter, so the visitor lands back on the EXACT advertisement
-     // or worker profile they were trying to open, not just a generic
-     // page. `message`, if present, is shown as this screen's subtitle.
      const redirectIsObject = redirectTo && typeof redirectTo === 'object' && redirectTo.page;
      const goToRedirect = () => {
        if (redirectIsObject) {
@@ -4136,4 +4049,3 @@ function AdFormPage({ navigate, mode, adId }) {
    // EXPORT
    // ==============================================================
    export default App;
-

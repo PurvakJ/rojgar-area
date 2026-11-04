@@ -3311,3 +3311,77 @@ img { max-width: 100%; height: auto; }
   .hero-placed-num { font-size: 28px; }
   .hero-placed-label { font-size: 13px; }
 }
+
+/* ============================================================
+   v15 — SEO update: links instead of buttons
+   (append at the VERY END of App.css)
+   ============================================================ */
+
+
+/* ---- Footer links: keep the same spacing as the old buttons ---- */
+.footer-link {
+  line-height: 1.4;
+  text-decoration: none;
+}
+.footer-link:visited { color: rgba(255, 255, 255, 0.78) !important; }
+
+/* ---- Brand logo link ---- */
+a.brand,
+a.brand:visited,
+a.brand:hover { text-decoration: none; color: inherit; }
+
+/* ---- Job cards / category cards are links now: no blue/purple text,
+        no underline anywhere inside them ---- */
+a.ad-card,
+a.ad-card:visited,
+a.ad-card:hover,
+.category-card a,
+.category-card a:visited,
+.category-card a:hover { text-decoration: none; color: inherit; }
+
+/* ---- Text links inside content cards (home "About" block, etc.) ----
+        Buttons that are links (.btn) are left alone. */
+.card a:not(.btn) {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(14, 110, 92, 0.35);
+  text-underline-offset: 2px;
+  transition: var(--transition);
+}
+.card a:not(.btn):hover {
+  color: var(--primary-dark);
+  text-decoration-color: currentColor;
+}
+.card a:not(.btn):visited { color: var(--primary); }
+
+/* ---- Page headings on Browse Jobs / Find Workers are <h1> now:
+        match the existing .section-head h2 look ---- */
+.section-head h1 {
+  position: relative;
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+.section-head h1::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 60px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+/* !important is needed because the h1s carry an inline font-size */
+@media (max-width: 768px) {
+  .section-head h1 { font-size: 24px !important; }
+}
+@media (max-width: 480px) {
+  .section-head h1 { font-size: 20px !important; }
+}
+
+/* ---- Longer "log in to post / view" message on the login card ---- */
+.auth-card .sub { line-height: 1.55; }

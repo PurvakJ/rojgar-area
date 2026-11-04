@@ -5,93 +5,75 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#1a3a5c" />
     <meta name="google-site-verification" content="vcoCISk-7r4YtKpY5BwXEsPJ-qNDJG7TKT_lCdbMQb0" />
-    
-    <!-- Primary Meta Tags -->
-    <title>Rojgar AREA — Find Jobs Near Me | Local Employment in India</title>
-    <meta name="description" content="Find jobs near me in India. Search local employment opportunities, rojgar, kaam ki vacancy, and jobs by city. Connect with businesses hiring near you." />
+
+    <!-- Primary Meta Tags (App.js updates these per page at runtime) -->
+    <title>Rojgar AREA — Find Local Jobs Near You | Free Job Portal for Workers & Employers</title>
+    <meta name="description" content="Find local jobs near you posted directly by factories, shops, restaurants and workshops. Free job portal for workers and employers in Punjab and across India — no middlemen." />
     <meta name="keywords" content="jobs near me, rojgar, kaam, naukri near me, local jobs, employment opportunities near me, jobs in India, jobs in Punjab, hiring near me, fresher jobs" />
-    <link rel="canonical" href="https://kaamboard.in/" />
-    
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://www.rojgararea.online/" />
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://kaamboard.in/" />
-    <meta property="og:title" content="Rojgar AREA — Find Jobs Near Me | Local Employment in India" />
-    <meta property="og:description" content="Find jobs near me in India. Search local employment, rojgar, kaam ki vacancy, and jobs by city." />
+    <meta property="og:site_name" content="Rojgar AREA" />
+    <meta property="og:url" content="https://www.rojgararea.online/" />
+    <meta property="og:title" content="Rojgar AREA — Find Local Jobs Near You" />
+    <meta property="og:description" content="Find local jobs near you posted directly by businesses. Free job portal for workers and employers in India." />
     <meta property="og:image" content="https://i.postimg.cc/7hpGhDYm/0167921c-b75f-4cdd-9482-51f3f880ce97.png" />
-    
+
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://kaamboard.in/" />
-    <meta name="twitter:title" content="Rojgar AREA — Find Jobs Near Me | Local Employment in India" />
-    <meta name="twitter:description" content="Find jobs near me in India. Search local employment, rojgar, kaam ki vacancy, and jobs by city." />
+    <meta name="twitter:title" content="Rojgar AREA — Find Local Jobs Near You" />
+    <meta name="twitter:description" content="Find local jobs near you posted directly by businesses. Free job portal for workers and employers in India." />
     <meta name="twitter:image" content="https://i.postimg.cc/7hpGhDYm/0167921c-b75f-4cdd-9482-51f3f880ce97.png" />
-    
-    <!-- ===== UPDATED FAVICON & APP ICON ===== -->
+
+    <!-- Favicon & app icon -->
     <link rel="icon" href="https://i.postimg.cc/7hpGhDYm/0167921c-b75f-4cdd-9482-51f3f880ce97.png" type="image/png" />
     <link rel="apple-touch-icon" href="https://i.postimg.cc/7hpGhDYm/0167921c-b75f-4cdd-9482-51f3f880ce97.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    
+
     <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="preconnect" href="https://api.cloudinary.com" />
     <link rel="preconnect" href="https://script.google.com" />
-    
-    <!-- Structured Data: Organization -->
+
+    <!-- Structured data (Organization + WebSite). App.js also sets the same
+         data at runtime under id="ld-site"; this static copy is what Google
+         sees before JavaScript runs. -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "Rojgar AREA",
-      "description": "India's local job platform connecting businesses with workers",
-      "url": "https://kaamboard.in/",
-      "logo": "https://kaamboard.in/logo.png",
-      "sameAs": [
-        "https://twitter.com/kaamboard",
-        "https://facebook.com/kaamboard"
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "Rojgar AREA",
+          "description": "Local job platform connecting businesses with workers across India",
+          "url": "https://www.rojgararea.online/",
+          "logo": "https://i.postimg.cc/T32GbFLk/01ac7af7-359d-4a35-ba73-684213d999ef.png"
+        },
+        {
+          "@type": "WebSite",
+          "name": "Rojgar AREA",
+          "url": "https://www.rojgararea.online/",
+          "description": "Find local jobs near you. Free job portal for workers and employers in India.",
+          "inLanguage": ["en", "hi", "pa"]
+        }
       ]
     }
     </script>
-    
-    <!-- Structured Data: WebSite -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebSite",
-      "name": "Rojgar AREA",
-      "url": "https://kaamboard.in/",
-      "description": "Find jobs near me in India. Local employment, rojgar, kaam ki vacancy.",
-      "potentialAction": {
-        "@type": "SearchAction",
-        "target": "https://kaamboard.in/jobs?search={search_term}",
-        "query-input": "required name=search_term"
-      }
-    }
-    </script>
-    
-    <title>Rojgar AREA</title>
   </head>
   <body>
-    <noscript>You need to enable JavaScript to run this app. Please enable JavaScript in your browser settings.</noscript>
+    <noscript>
+      <h1>Rojgar AREA — Find Local Jobs Near You</h1>
+      <p>Rojgar AREA is a free local job portal connecting workers with nearby businesses. Please enable JavaScript to use the site.</p>
+      <ul>
+        <li><a href="https://www.rojgararea.online/browse">Browse Jobs</a></li>
+        <li><a href="https://www.rojgararea.online/workers">Find Workers</a></li>
+        <li><a href="https://www.rojgararea.online/post">Post a Requirement</a></li>
+        <li><a href="https://www.rojgararea.online/register">Create a free account</a></li>
+      </ul>
+    </noscript>
     <div id="root"></div>
-    
-    <!-- React 18 -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel standalone -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- App Entry Point - Fixed with proper Babel configuration -->
-    <script type="text/babel" data-presets="react,stage-3" data-type="module">
-      import App from './app.js';
-      import React from 'react';
-      import ReactDOM from 'react-dom';
-      
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(<App />);
-    </script>
+    <!-- Create React App injects the compiled bundle here automatically. -->
   </body>
 </html>
