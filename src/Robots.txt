@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /edit/
+
+Sitemap: https://www.rojgararea.online/sitemap.xml
